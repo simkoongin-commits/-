@@ -1253,7 +1253,10 @@ main {
 }
 .calendar-wrap .section-head {
   align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
 }
+.calendar-add { min-height: 36px; margin: 0 0 0 auto; padding: 8px 10px; font-size: 12px; white-space: nowrap; }
 .calendar {
   border-radius: 14px;
   overflow-x: hidden;
