@@ -13,6 +13,7 @@ type Member = {
   grade: "예비신사" | "신사" | "구사";
   role: "관리자" | "회원";
   position?: "대표" | "부대표" | "교육팀장" | "장비팀장" | "홍보팀장" | "";
+  practicePermission?: boolean;
 };
 type Practice = {
   id: number;
@@ -34,6 +35,9 @@ type Practice = {
   timetable?: string;
   createdBy?: string;
 };
+type PublicPost = { id: string; title: string; body: string; date: string; cover?: string; media?: string[] };
+type PublicQuestion = { id: string; title: string; body: string; nickname?: string; status: "waiting" | "answered" | "discarded"; answer?: string; answeredBy?: string; createdAt: string };
+type PromoScene = { id: string; eyebrow: string; title: string; body: string; theme: "sky" | "ink" | "foam"; image?: string };
 
 const initialMembers: Member[] = [
   {
@@ -72,6 +76,15 @@ const initialMembers: Member[] = [
     grade: "구사",
     role: "회원",
   },
+];
+const defaultPromoScenes: PromoScene[] = [
+  { id: "welcome", eyebrow: "한양대학교 국궁동아리", title: "활을 쏘는 순간,\n마음이 한곳에 모입니다.", body: "심궁회는 국궁을 함께 배우고, 꾸준히 수련하는 한양대학교 중앙동아리입니다.", theme: "sky" },
+  { id: "practice", eyebrow: "정규 습사", title: "처음이어도\n함께라서 괜찮아요.", body: "기초부터 차근차근. 예비신사 교육과 정규 습사를 통해 안전하게 활을 배웁니다.", theme: "foam" },
+  { id: "community", eyebrow: "심궁회의 시간", title: "활 하나로 이어지는\n우리의 계절.", body: "자유 습사, 대회, 그리고 함께 나누는 일상까지. 심궁회의 이야기를 만나보세요.", theme: "ink" },
+];
+const defaultPublicPosts: PublicPost[] = [
+  { id: "welcome-post", title: "심궁회에 오신 것을 환영합니다", body: "한양대학교 국궁동아리 심궁회는 국궁을 사랑하는 사람들이 함께 성장하는 공간입니다.", date: "2026. 09. 13." },
+  { id: "recruit-post", title: "2026년 2학기 신입부원 안내", body: "국궁이 처음이어도 괜찮습니다. Q&A에서 편하게 문의해주세요.", date: "2026. 09. 10." },
 ];
 
 const termIndex = (term: string) => {
@@ -173,12 +186,12 @@ function announcement(p: Practice, formats: CopyFormats) {
 
 const authEmail = (studentId: string) => `${studentId.trim()}@simgunghoe.local`;
 
-function LoginScreen({ error, onRegister }: { error?: string; onRegister: (details: { studentId: string; password: string; name: string; joinTerm: string }) => Promise<void> }) {
+function LoginScreen({ error, onRegister, initialMode = "login", onClose }: { error?: string; onRegister: (details: { studentId: string; password: string; name: string; joinTerm: string }) => Promise<void>; initialMode?: "login" | "signup"; onClose?: () => void }) {
   const [studentId, setStudentId] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [joinTerm, setJoinTerm] = useState("26-2");
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [message, setMessage] = useState(error || "");
   const [submitting, setSubmitting] = useState(false);
   const login = async (e: React.FormEvent) => {
@@ -209,6 +222,7 @@ function LoginScreen({ error, onRegister }: { error?: string; onRegister: (detai
   return (
     <main className="login-screen">
       <section className="login-card">
+        {onClose && <button className="login-close" onClick={onClose} aria-label="홍보 페이지로 돌아가기">×</button>}
         <span className="brandmark"><img src="/hanyang-mark.png" alt="한양대학교 마크" /></span>
         <p className="eyebrow">한양대학교 국궁동아리</p>
         <h1>심궁회<br /><em>습사 일정표</em></h1>
@@ -227,6 +241,46 @@ function LoginScreen({ error, onRegister }: { error?: string; onRegister: (detai
           </button>
         </form>
       </section>
+    </main>
+  );
+}
+
+function PublicPortal({ signedIn, onAuth, onMember }: { signedIn: boolean; onAuth: (mode: "login" | "signup") => void; onMember?: () => void }) {
+  const [tab, setTab] = useState<"home" | "qa" | "posts">("home");
+  const [questionSent, setQuestionSent] = useState(false);
+  const [question, setQuestion] = useState({ title: "", body: "", nickname: "" });
+  return (
+    <main className="public-shell">
+      <header className="public-topbar">
+        <a className="brand" href="#top"><span className="brandmark"><img src="/hanyang-mark.png" alt="한양대학교 마크" /></span><b>심궁회</b></a>
+        <div className="public-actions">
+          {signedIn ? <button className="member-link" onClick={onMember}>회원 전용</button> : <><button className="plain-link" onClick={() => onAuth("login")}>로그인</button><button className="public-join" onClick={() => onAuth("signup")}>회원가입</button></>}
+        </div>
+      </header>
+      <nav className="public-nav" aria-label="홍보 메뉴">
+        <button className={tab === "home" ? "active" : ""} onClick={() => setTab("home")}>홈</button>
+        <button className={tab === "qa" ? "active" : ""} onClick={() => setTab("qa")}>Q&amp;A</button>
+        <button className={tab === "posts" ? "active" : ""} onClick={() => setTab("posts")}>게시물</button>
+      </nav>
+      {tab === "home" && <section id="top" className="promo-home">
+        {defaultPromoScenes.map((scene, index) => <article key={scene.id} className={`promo-scene ${scene.theme}`}>
+          <div className="scene-orbit" aria-hidden="true" />
+          <p>{scene.eyebrow}</p><h1>{scene.title.split("\n").map((line) => <span key={line}>{line}</span>)}</h1><div className="scene-copy"><span>0{index + 1}</span><p>{scene.body}</p></div>
+        </article>)}
+        <article className="promo-cta"><p>SIMKOONG ARCHERY CLUB</p><h2>우리의 다음 화살은<br />당신과 함께.</h2><button onClick={() => setTab("qa")}>궁금한 점 물어보기</button></article>
+      </section>}
+      {tab === "qa" && <section className="public-content">
+        <div className="public-heading"><p>Q&amp;A</p><h1>궁금한 점을<br />편하게 물어보세요.</h1><span>답변이 등록된 질문은 모든 사람에게 공개됩니다.</span></div>
+        <form className="question-form" onSubmit={(event) => { event.preventDefault(); setQuestionSent(true); setQuestion({ title: "", body: "", nickname: "" }); }}>
+          <label>질문 제목<input required value={question.title} onChange={(e) => setQuestion({ ...question, title: e.target.value })} placeholder="예: 국궁을 처음 해보는데 가입할 수 있나요?" /></label>
+          <label>질문 내용<textarea required value={question.body} onChange={(e) => setQuestion({ ...question, body: e.target.value })} placeholder="궁금한 내용을 적어주세요." /></label>
+          <label>닉네임 <small>선택</small><input value={question.nickname} onChange={(e) => setQuestion({ ...question, nickname: e.target.value })} placeholder="공개될 이름" /></label>
+          <button className="public-submit">질문 보내기</button>
+          {questionSent && <p className="form-success">질문을 접수했어요. 운영진이 확인 후 답변합니다.</p>}
+        </form>
+        <div className="qa-list"><p className="list-label">답변된 질문</p><article><b>Q. 국궁을 처음 해보는데 가입할 수 있나요?</b><p>A. 네. 국궁 경험이 없어도 예비신사 교육을 통해 기초부터 안전하게 배울 수 있습니다.</p><small>심궁회 교육팀 · 2026. 09. 13.</small></article><article><b>Q. 활동은 주로 언제 하나요?</b><p>A. 정규 습사와 자유 습사 일정은 회원 전용 일정표에서 안내합니다.</p><small>심궁회 · 2026. 09. 12.</small></article></div>
+      </section>}
+      {tab === "posts" && <section className="public-content"><div className="public-heading"><p>STORIES</p><h1>심궁회의<br />새로운 소식.</h1></div><div className="public-posts">{defaultPublicPosts.map((post, index) => <article key={post.id} className={`public-post post-${index}`}><div className="post-cover"><span>SIMKOONG</span></div><div><small>{post.date}</small><h2>{post.title}</h2><p>{post.body}</p><button>자세히 보기 <span>→</span></button></div></article>)}</div></section>}
     </main>
   );
 }
@@ -253,7 +307,7 @@ function BootstrapAdmin({ studentId, onSave }: { studentId: string; onSave: (mem
 
 export default function Home() {
   const [practices, setPractices] = useState<Practice[]>(seedPractices);
-  const [view, setView] = useState<"cards" | "calendar" | "members">("cards");
+  const [view, setView] = useState<"education" | "cards" | "calendar" | "members">("cards");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
   const [filter, setFilter] = useState<"all" | "regular" | "general" | "competition">("all");
   const [toast, setToast] = useState("");
@@ -271,6 +325,8 @@ export default function Home() {
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
   const [accessError, setAccessError] = useState("");
   const [needsBootstrap, setNeedsBootstrap] = useState(false);
+  const [topTab, setTopTab] = useState<"public" | "member">("member");
+  const [authOverlay, setAuthOverlay] = useState<"login" | "signup" | null>(null);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
   useEffect(() => {
@@ -387,8 +443,8 @@ export default function Home() {
         )[0],
     [practices],
   );
-  if (authUser === undefined) return <main className="login-screen"><p>심궁회 일정표를 준비하고 있어요.</p></main>;
-  if (!authUser) return <LoginScreen error={accessError} onRegister={registerMember} />;
+  if (authUser === undefined) return <main className="login-screen"><p>심궁회 일정을 준비하고 있어요.</p></main>;
+  if (!authUser) return <>{authOverlay ? <LoginScreen error={accessError} onRegister={registerMember} initialMode={authOverlay} onClose={() => setAuthOverlay(null)} /> : <PublicPortal signedIn={false} onAuth={setAuthOverlay} />}</>;
   if (!ready) return <main className="login-screen"><p>공동 일정을 불러오고 있어요.</p></main>;
   if (needsBootstrap) return <BootstrapAdmin studentId={authUser.email?.split("@")[0] || ""} onSave={(member) => { void finishBootstrap(member); }} />;
   const nextRegularRound =
@@ -416,6 +472,10 @@ export default function Home() {
     notify(message);
   };
   const toggleJoin = (id: number) => {
+    if (session.grade === "예비신사" && !session.practicePermission) {
+      notify("예비신사는 운영진이 습사 권한을 부여한 뒤 신청할 수 있어요");
+      return;
+    }
     const practice = practices.find((item) => item.id === id);
     if (practice?.applicants.includes(session.name)) {
       setCancelTarget(id);
@@ -434,8 +494,10 @@ export default function Home() {
     setCancelTarget(null);
     notify("신청을 취소했어요");
   };
+  if (topTab === "public") return <><div className="top-switch"><button className="active" onClick={() => setTopTab("public")}>홍보</button><button onClick={() => setTopTab("member")}>회원 전용</button></div><PublicPortal signedIn onAuth={() => undefined} onMember={() => setTopTab("member")} /></>;
   return (
     <main>
+      <div className="top-switch"><button onClick={() => setTopTab("public")}>홍보</button><button className="active" onClick={() => setTopTab("member")}>회원 전용</button></div>
       <header className="topbar">
         <a className="brand" href="#">
           <span className="brandmark">
@@ -517,6 +579,7 @@ export default function Home() {
         </button>
       </section>
       <nav className="tabs" aria-label="하단 메뉴">
+        <button className={view === "education" ? "active" : ""} onClick={() => setView("education")}><span>✦</span>교육</button>
         <button
           className={view === "cards" ? "active" : ""}
           onClick={() => setView("cards")}
@@ -545,7 +608,10 @@ export default function Home() {
             </div>
             <button
               className="primary add-button"
-              onClick={() => setShowForm(true)}
+              onClick={() => {
+                if (session.grade === "예비신사" && !session.practicePermission) { notify("예비신사는 운영진이 습사 권한을 부여한 뒤 일정을 추가할 수 있어요"); return; }
+                setShowForm(true);
+              }}
               aria-label="습사 등록"
             >
               <span aria-hidden="true">＋</span>
@@ -761,6 +827,7 @@ export default function Home() {
           </button>
         </section>
       )}
+      {view === "education" && <Education />}
       {view === "calendar" && (
         <Calendar
           practices={practices}
@@ -1157,6 +1224,14 @@ function Participants({
       </section>
     </div>
   );
+}
+
+function Education() {
+  return <section className="content education-page">
+    <div className="section-head"><div><h2>교육 일정</h2><p>국궁을 처음 배우는 예비신사를 위한 안내예요.</p></div></div>
+    <article className="education-hero"><p>NEW ARCHER PROGRAM</p><h3>처음 잡는 활부터<br />나만의 한 발까지.</h3><span>예비신사 교육은 정규 습사 일정과 함께 안내됩니다.</span></article>
+    <div className="education-list"><p className="list-label">교육 안내</p><article><span>01</span><div><b>안전 교육</b><p>국궁장 예절과 장비를 안전하게 다루는 방법을 배웁니다.</p></div></article><article><span>02</span><div><b>기초 자세</b><p>활 잡기, 자세, 시위 당기기 등 기본 동작을 함께 연습합니다.</p></div></article><article><span>03</span><div><b>첫 습사</b><p>교육팀과 함께 습사에 참여하며 나만의 활쏘기를 시작합니다.</p></div></article></div>
+  </section>;
 }
 
 function Calendar({
