@@ -2312,6 +2312,9 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .mentor-card p { margin: 10px 0 6px; color: #6a8799; font-size: 12px; }
 .mentor-card small { display: block; margin-bottom: 13px; color: #2b6788; font-weight: 800; }
 .mentor-card button { min-height: 37px; width: 100%; font-size: 12px; }
+.mentor-owner-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.mentor-owner-actions .text-button { margin: 0; padding: 0 5px; background: #eef8fc; color: #1b78ad; border-radius: 9px; font-weight: 800; }
+.mentor-owner-actions .mentor-cancel { color: #b75a43; border-color: #f0d2c8; background: #fff9f6; }
 .my-mentor { margin: 14px 0 0; padding: 11px 13px; border-radius: 10px; background: #e8f6ff; color: #256e99; font-size: 13px; font-weight: 800; }
 .education-modal { width: min(430px, calc(100vw - 30px)); }
 .education-modal label { display: block; margin: 15px 0; color: #2c5b75; font-size: 12px; font-weight: 800; }
@@ -2321,9 +2324,10 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .schedule-sheet { width: min(960px, calc(100vw - 20px)); max-height: 93vh; overflow: auto; }
 .schedule-legend { display: flex; gap: 8px; margin: 0 0 13px; font-size: 11px; font-weight: 800; }
 .schedule-legend span { padding: 5px 8px; border-radius: 7px; }
+.schedule-legend small { margin-left: auto; align-self: center; color: #7993a4; font-size: 10px; font-weight: 700; }
 .schedule-legend .educator, .weekly-table .educator { background: #e6f0ff; color: #2874be; }
 .schedule-legend .learner, .weekly-table .learner { background: #e9f7ed; color: #188045; }
-.weekly-table-wrap { overflow-x: auto; border: 1px solid #d4e3eb; border-radius: 12px; }
+.weekly-table-wrap { overflow-x: auto; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; border: 1px solid #d4e3eb; border-radius: 12px; }
 .weekly-table { width: 100%; min-width: 660px; border-collapse: collapse; font-size: 11px; }
 .weekly-table th, .weekly-table td { border: 1px solid #d8e3e9; text-align: center; vertical-align: middle; }
 .weekly-table thead th { height: 52px; background: #f4f8fa; color: #28526b; font-size: 11px; }
@@ -2332,6 +2336,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .weekly-table tbody > tr > th:first-child { min-width: 88px; background: #fafcfd; color: #33576c; }
 .weekly-table tbody > tr > th:nth-child(2) { min-width: 54px; }
 .weekly-table td { min-width: 95px; padding: 0; background: #fff; }
+.weekly-table th:first-child, .weekly-table td:first-child { position: sticky; left: 0; z-index: 3; }
 .weekly-table td button { width: 100%; min-height: 37px; padding: 4px; border: 0; background: transparent; color: #116dcc; white-space: pre-line; font-weight: 800; font-size: 11px; }
 .weekly-table td button:disabled { cursor: default; color: inherit; }
 .weekly-table .learner-cell button { color: #168047; }

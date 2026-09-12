@@ -2497,12 +2497,22 @@ function Education({
                 <p>자주 가는 활터 · {mentor.range}</p>
                 <small>멘티 {mentor.mentees.length} / {mentor.capacity}명</small>
                 {isMine ? (
-                  <button
-                    className="text-button"
-                    onClick={() => setShowMentorForm(true)}
-                  >
-                    내 멘토 정보 수정
-                  </button>
+                  <div className="mentor-owner-actions">
+                    <button className="text-button" onClick={() => setShowMentorForm(true)}>
+                      내 멘토 정보 수정
+                    </button>
+                    <button
+                      className="outline mentor-cancel"
+                      onClick={() => {
+                        const warning = mentor.mentees.length
+                          ? "멘토 신청을 취소하면 연결된 멘티도 모두 해제됩니다. 취소할까요?"
+                          : "멘토 신청을 취소할까요?";
+                        if (!window.confirm(warning)) return;
+                        onMentors(mentors.filter((item) => item.memberId !== session.id));
+                        notify("멘토 신청을 취소했어요");
+                      }}
+                    >멘토 신청 취소</button>
+                  </div>
                 ) : isMentee ? (
                   <button
                     className="outline"
@@ -2576,7 +2586,8 @@ const educationTimes = Array.from({ length: 16 }, (_, index) => {
   const minutes = 10 * 60 + index * 30;
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 });
-const dateKey = (date: Date) => date.toISOString().slice(0, 10);
+const dateKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const mondayOf = (source: Date) => {
   const date = new Date(source.getFullYear(), source.getMonth(), source.getDate());
   const offset = (date.getDay() + 6) % 7;
@@ -2657,7 +2668,7 @@ function ScheduleSheet({
     <div className="modal-back">
       <section className="modal schedule-sheet">
         <div className="modal-head"><div><p className="eyebrow">{shortScheduleLabel(schedule)}</p><h2>{schedule.place}</h2></div><button onClick={onClose}>×</button></div>
-        <div className="schedule-legend"><span className="educator">교육팀</span><span className="learner">예비신사</span></div>
+        <div className="schedule-legend"><span className="educator">교육팀</span><span className="learner">예비신사</span><small>표를 좌우로 밀어 모든 날짜를 확인하세요.</small></div>
         <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="educator-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!canManage || isPreliminary}>{slot?.educators.join("\n") || (canManage && !isPreliminary ? "+" : "")}</button></td>; })}</tr><tr><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="learner-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
         {canManage && <button className="danger-button" onClick={() => { if (window.confirm("이 시간표를 폐기할까요?")) onDelete(); }}>시간표 폐기</button>}
       </section>
