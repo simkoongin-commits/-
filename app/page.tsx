@@ -85,6 +85,7 @@ type EducationSchedule = {
   startDate: string;
   endDate: string;
   place: string;
+  learnerCapacity: number;
   slots: Record<string, EducationSlot>;
   createdBy: string;
 };
@@ -1402,6 +1403,22 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(""), 1900);
   };
+  const saveEducationSchedules = (next: EducationSchedule[]) => {
+    setEducationSchedules(next);
+    void setDoc(
+      doc(db, "clubs", "simgunghoe"),
+      { educationSchedules: next },
+      { merge: true },
+    ).catch(() => notify("교육 시간표를 저장하지 못했어요. 다시 시도해주세요."));
+  };
+  const saveMentors = (next: Mentor[]) => {
+    setMentors(next);
+    void setDoc(
+      doc(db, "clubs", "simgunghoe"),
+      { mentors: next },
+      { merge: true },
+    ).catch(() => notify("도제 프로그램 정보를 저장하지 못했어요. 다시 시도해주세요."));
+  };
   const copy = async (text: string, message = "공지 내용을 복사했어요") => {
     await navigator.clipboard.writeText(text);
     notify(message);
@@ -1923,8 +1940,8 @@ export default function Home() {
           schedules={educationSchedules}
           mentors={mentors}
           session={session}
-          onSchedules={setEducationSchedules}
-          onMentors={setMentors}
+          onSchedules={saveEducationSchedules}
+          onMentors={saveMentors}
           notify={notify}
         />
       )}
@@ -2629,7 +2646,7 @@ function ScheduleForm({
         <p className="form-hint">월~금, 10:00~18:00의 30분 단위 시간표가 생성됩니다.</p>
         <button className="primary" disabled={!place.trim()} onClick={() => {
           const start = new Date(`${startDate}T12:00:00`); const end = new Date(start); end.setDate(start.getDate() + 4);
-          onSave({ id: String(Date.now()), startDate, endDate: dateKey(end), place: place.trim(), slots: {}, createdBy: session.id });
+          onSave({ id: String(Date.now()), startDate, endDate: dateKey(end), place: place.trim(), learnerCapacity: 1, slots: {}, createdBy: session.id });
         }}>시간표 만들기</button>
       </section>
     </div>
@@ -2653,6 +2670,7 @@ function ScheduleSheet({
 }) {
   const dates = weekDates(schedule.startDate);
   const isPreliminary = session.grade === "예비신사";
+  const learnerCapacity = Math.max(1, schedule.learnerCapacity || 1);
   const toggle = (date: string, time: string) => {
     const key = slotKey(date, time);
     const current = schedule.slots[key] || { educators: [], learners: [] };
@@ -2661,15 +2679,16 @@ function ScheduleSheet({
     if (!isEducator && !isPreliminary) return;
     if (!isEducator && current.educators.length === 0) return;
     const values = current[field];
+    if (!isEducator && !values.includes(session.name) && values.length >= learnerCapacity) return;
     const nextValues = values.includes(session.name) ? values.filter((name) => name !== session.name) : [...values, session.name];
     onSave({ ...schedule, slots: { ...schedule.slots, [key]: { ...current, [field]: nextValues } } });
   };
   return (
-    <div className="modal-back">
+    <div className="modal-back schedule-modal-back">
       <section className="modal schedule-sheet">
         <div className="modal-head"><div><p className="eyebrow">{shortScheduleLabel(schedule)}</p><h2>{schedule.place}</h2></div><button onClick={onClose}>×</button></div>
-        <div className="schedule-legend"><span className="educator">교육팀</span><span className="learner">예비신사</span><small>표를 좌우로 밀어 모든 날짜를 확인하세요.</small></div>
-        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="educator-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!canManage || isPreliminary}>{slot?.educators.join("\n") || (canManage && !isPreliminary ? "+" : "")}</button></td>; })}</tr><tr><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="learner-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
+        <div className="schedule-controls"><div className="schedule-legend"><span className="educator">교육팀</span><span className="learner">예비신사</span></div>{canManage && <label>예비신사 칸 정원<input type="number" min="1" max="20" value={learnerCapacity} onChange={(e) => onSave({ ...schedule, learnerCapacity: Math.max(1, Number(e.target.value) || 1) })} /></label>}<small>각 시간 칸에 적용됩니다. 표를 좌우로 밀어 모든 날짜를 확인하세요.</small></div>
+        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr className="educator-row"><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="educator-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!canManage || isPreliminary}>{slot?.educators.join("\n") || (canManage && !isPreliminary ? "+" : "")}</button></td>; })}</tr><tr className="learner-row"><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="learner-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
         {canManage && <button className="danger-button" onClick={() => { if (window.confirm("이 시간표를 폐기할까요?")) onDelete(); }}>시간표 폐기</button>}
       </section>
     </div>
