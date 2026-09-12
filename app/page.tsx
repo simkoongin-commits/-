@@ -97,6 +97,24 @@ type Mentor = {
   capacity: number;
   mentees: string[];
 };
+const educationCacheKey = (kind: "schedules" | "mentors") =>
+  `simgunghoe:education:${kind}`;
+const readEducationCache = <T,>(kind: "schedules" | "mentors", fallback: T) => {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const stored = window.localStorage.getItem(educationCacheKey(kind));
+    return stored ? (JSON.parse(stored) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+const writeEducationCache = (kind: "schedules" | "mentors", value: unknown) => {
+  try {
+    window.localStorage.setItem(educationCacheKey(kind), JSON.stringify(value));
+  } catch {
+    /* Firebase 저장이 기본이며, 브라우저 보관은 보조 수단입니다. */
+  }
+};
 
 const initialMembers: Member[] = [
   {
@@ -1195,8 +1213,10 @@ export default function Home() {
           copyFormats: { ...defaultCopyFormats, ...(data.copyFormats || {}) },
           educationSchedules: Array.isArray(data.educationSchedules)
             ? (data.educationSchedules as EducationSchedule[])
-            : [],
-          mentors: Array.isArray(data.mentors) ? (data.mentors as Mentor[]) : [],
+            : readEducationCache<EducationSchedule[]>("schedules", []),
+          mentors: Array.isArray(data.mentors)
+            ? (data.mentors as Mentor[])
+            : readEducationCache<Mentor[]>("mentors", []),
         };
         cloudState.current = JSON.stringify(next);
         setPractices(next.practices);
@@ -1405,19 +1425,21 @@ export default function Home() {
   };
   const saveEducationSchedules = (next: EducationSchedule[]) => {
     setEducationSchedules(next);
+    writeEducationCache("schedules", next);
     void setDoc(
       doc(db, "clubs", "simgunghoe"),
       { educationSchedules: next },
       { merge: true },
-    ).catch(() => notify("교육 시간표를 저장하지 못했어요. 다시 시도해주세요."));
+    ).then(() => notify("교육 시간표를 저장했어요")).catch(() => notify("교육 시간표를 저장하지 못했어요. 다시 시도해주세요."));
   };
   const saveMentors = (next: Mentor[]) => {
     setMentors(next);
+    writeEducationCache("mentors", next);
     void setDoc(
       doc(db, "clubs", "simgunghoe"),
       { mentors: next },
       { merge: true },
-    ).catch(() => notify("도제 프로그램 정보를 저장하지 못했어요. 다시 시도해주세요."));
+    ).then(() => notify("도제 프로그램 정보를 저장했어요")).catch(() => notify("도제 프로그램 정보를 저장하지 못했어요. 다시 시도해주세요."));
   };
   const copy = async (text: string, message = "공지 내용을 복사했어요") => {
     await navigator.clipboard.writeText(text);
@@ -1614,7 +1636,7 @@ export default function Home() {
           </button>
         </div>
       </header>
-      <section className="hero">
+      {view !== "education" && <section className="hero">
         <img
           className="hero-logo"
           src="/simkoong-heart.png"
@@ -1664,7 +1686,7 @@ export default function Home() {
               : "등록된 일정 없음"}
           </small>
         </button>
-      </section>
+      </section>}
       <nav className="tabs" aria-label="하단 메뉴">
         <button
           className={view === "education" ? "active" : ""}
@@ -1948,6 +1970,8 @@ export default function Home() {
       {view === "calendar" && (
         <Calendar
           practices={practices}
+          canAdd={session.role === "관리자"}
+          onAdd={() => setShowForm(true)}
           onSelect={(id) => {
             setView("cards");
             window.setTimeout(
@@ -2711,9 +2735,13 @@ function addThirty(time: string) {
 function Calendar({
   practices,
   onSelect,
+  canAdd,
+  onAdd,
 }: {
   practices: Practice[];
   onSelect: (id: number) => void;
+  canAdd: boolean;
+  onAdd: () => void;
 }) {
   const [month, setMonth] = useState(new Date(2026, 8, 1));
   const year = month.getFullYear();
@@ -2739,6 +2767,11 @@ function Calendar({
             ›
           </button>
         </div>
+        {canAdd && (
+          <button className="primary calendar-add" onClick={onAdd}>
+            + 일정 추가
+          </button>
+        )}
       </div>
       <div className="calendar">
         <div className="week">
