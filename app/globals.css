@@ -595,6 +595,19 @@ button {
   font-size: 11px;
   line-height: 1.45;
 }
+.calendar-event {
+  margin-top: 3px;
+  padding: 4px 3px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #eee9ff;
+  color: #6342a1;
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .days button.regular {
   background: #dceee6;
   color: #195941;

@@ -97,6 +97,15 @@ type Mentor = {
   capacity: number;
   mentees: string[];
 };
+type CalendarEvent = {
+  id: string;
+  title: string;
+  date: string;
+  start?: string;
+  end?: string;
+  note?: string;
+  createdBy: string;
+};
 const educationCacheKey = (kind: "schedules" | "mentors") =>
   `simgunghoe:education:${kind}`;
 const readEducationCache = <T,>(kind: "schedules" | "mentors", fallback: T) => {
@@ -1099,6 +1108,8 @@ export default function Home() {
     EducationSchedule[]
   >([]);
   const [mentors, setMentors] = useState<Mentor[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [showCalendarForm, setShowCalendarForm] = useState(false);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
   useEffect(() => {
@@ -1157,6 +1168,7 @@ export default function Home() {
           copyFormats: defaultCopyFormats,
           educationSchedules: [],
           mentors: [],
+          calendarEvents: [],
           }).catch(() => {
             setAccessError(
               "공동 일정판을 준비하지 못했어요. 다시 로그인한 뒤 시도해주세요.",
@@ -1187,6 +1199,9 @@ export default function Home() {
               ? (data.educationSchedules as EducationSchedule[])
               : [],
             mentors: Array.isArray(data.mentors) ? (data.mentors as Mentor[]) : [],
+            calendarEvents: Array.isArray(data.calendarEvents)
+              ? (data.calendarEvents as CalendarEvent[])
+              : [],
           };
           cloudState.current = JSON.stringify(emptyState);
           setPractices(emptyState.practices);
@@ -1217,6 +1232,9 @@ export default function Home() {
           mentors: Array.isArray(data.mentors)
             ? (data.mentors as Mentor[])
             : readEducationCache<Mentor[]>("mentors", []),
+          calendarEvents: Array.isArray(data.calendarEvents)
+            ? (data.calendarEvents as CalendarEvent[])
+            : [],
         };
         cloudState.current = JSON.stringify(next);
         setPractices(next.practices);
@@ -1225,6 +1243,7 @@ export default function Home() {
         setCopyFormats(next.copyFormats);
         setEducationSchedules(next.educationSchedules);
         setMentors(next.mentors);
+        setCalendarEvents(next.calendarEvents);
         setSession(member);
         setReady(true);
       },
@@ -1245,6 +1264,7 @@ export default function Home() {
       copyFormats,
       educationSchedules,
       mentors,
+      calendarEvents,
     });
     if (cloudState.current === next) return;
     cloudState.current = next;
@@ -1253,15 +1273,18 @@ export default function Home() {
       members: clubMembers,
       currentTerm,
       copyFormats,
+      educationSchedules,
+      mentors,
+      calendarEvents,
     }).catch(() => {
       cloudState.current = "";
       setAccessError(
         "공동 데이터 저장에 실패했어요. 잠시 후 다시 시도해주세요.",
       );
     });
-  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, ready, authUser]);
+  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, ready, authUser]);
   const finishBootstrap = async (member: Member) => {
-    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors };
+    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents };
     try {
       await setDoc(doc(db, "clubs", "simgunghoe"), next);
       cloudState.current = JSON.stringify(next);
@@ -1440,6 +1463,16 @@ export default function Home() {
       { mentors: next },
       { merge: true },
     ).then(() => notify("도제 프로그램 정보를 저장했어요")).catch(() => notify("도제 프로그램 정보를 저장하지 못했어요. 다시 시도해주세요."));
+  };
+  const saveCalendarEvent = (event: CalendarEvent) => {
+    const next = [...calendarEvents, event];
+    setCalendarEvents(next);
+    setShowCalendarForm(false);
+    void setDoc(
+      doc(db, "clubs", "simgunghoe"),
+      { calendarEvents: next },
+      { merge: true },
+    ).then(() => notify("달력 일정을 등록했어요")).catch(() => notify("달력 일정을 저장하지 못했어요. 다시 시도해주세요."));
   };
   const copy = async (text: string, message = "공지 내용을 복사했어요") => {
     await navigator.clipboard.writeText(text);
@@ -1970,8 +2003,9 @@ export default function Home() {
       {view === "calendar" && (
         <Calendar
           practices={practices}
+          events={calendarEvents}
           canAdd={session.role === "관리자"}
-          onAdd={() => setShowForm(true)}
+          onAdd={() => setShowCalendarForm(true)}
           onSelect={(id) => {
             setView("cards");
             window.setTimeout(
@@ -1982,6 +2016,13 @@ export default function Home() {
               80,
             );
           }}
+        />
+      )}
+      {showCalendarForm && (
+        <CalendarEventForm
+          session={session}
+          onClose={() => setShowCalendarForm(false)}
+          onSave={saveCalendarEvent}
         />
       )}
       {view === "members" && (
@@ -2732,13 +2773,45 @@ function addThirty(time: string) {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
+function CalendarEventForm({
+  session,
+  onClose,
+  onSave,
+}: {
+  session: Member;
+  onClose: () => void;
+  onSave: (event: CalendarEvent) => void;
+}) {
+  const today = new Date();
+  const todayValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const [title, setTitle] = useState("");
+  const [date, setDate] = useState(todayValue);
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [note, setNote] = useState("");
+  return (
+    <div className="modal-back">
+      <section className="modal education-modal">
+        <div className="modal-head"><div><p className="eyebrow">달력</p><h2>일정 추가</h2></div><button onClick={onClose}>×</button></div>
+        <label>일정 제목<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 운영진 회의" /></label>
+        <label>날짜<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+        <div className="form-row"><label>시작 시간 <input type="time" step="1800" value={start} onChange={(e) => setStart(e.target.value)} /></label><label>종료 시간 <input type="time" step="1800" value={end} onChange={(e) => setEnd(e.target.value)} /></label></div>
+        <label>메모 <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="선택 입력" /></label>
+        <button className="primary" disabled={!title.trim()} onClick={() => onSave({ id: String(Date.now()), title: title.trim(), date, start, end, note: note.trim(), createdBy: session.id })}>일정 등록</button>
+      </section>
+    </div>
+  );
+}
+
 function Calendar({
   practices,
+  events,
   onSelect,
   canAdd,
   onAdd,
 }: {
   practices: Practice[];
+  events: CalendarEvent[];
   onSelect: (id: number) => void;
   canAdd: boolean;
   onAdd: () => void;
@@ -2756,7 +2829,7 @@ function Calendar({
           <h2>
             {year}년 {monthNumber + 1}월
           </h2>
-          <p>날짜별 습사 일정을 확인하세요.</p>
+          <p>습사와 일반 일정을 함께 확인하세요.</p>
         </div>
         <div className="month-nav">
           <button onClick={() => setMonth(new Date(year, monthNumber - 1, 1))}>
@@ -2782,19 +2855,23 @@ function Calendar({
         <div className="days">
           {days.map((d, i) => {
             const key = `${year}-${String(monthNumber + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-            const p = practices.find((x) => x.date === key);
+            const dayPractices = practices.filter((x) => x.date === key);
+            const dayEvents = events.filter((x) => x.date === key);
             return (
               <div key={i} className={key === "2026-09-11" ? "today" : ""}>
                 {d > 0 && d <= lastDate && (
                   <>
                     <span>{d}</span>
-                    {p && (
-                      <button className={p.type} onClick={() => onSelect(p.id)}>
-                        {p.start}
-                        <br />
-                        {p.title}
+                    {dayPractices.map((practice) => (
+                      <button className={practice.type} key={practice.id} onClick={() => onSelect(practice.id)}>
+                        {practice.start}<br />{practice.title}
                       </button>
-                    )}
+                    ))}
+                    {dayEvents.map((event) => (
+                      <div className="calendar-event" key={event.id} title={event.note}>
+                        {event.start ? `${event.start} ` : ""}{event.title}
+                      </div>
+                    ))}
                   </>
                 )}
               </div>
