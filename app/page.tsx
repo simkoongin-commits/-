@@ -1,6 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { User } from "firebase/auth";
+import { createUserWithEmailAndPassword, deleteUser, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 
 type Member = {
   id: string;
@@ -28,6 +32,7 @@ type Practice = {
   timeNote?: string;
   updated?: string[];
   timetable?: string;
+  createdBy?: string;
 };
 
 const initialMembers: Member[] = [
@@ -140,92 +145,232 @@ const deadlineText = (value: string, regular: boolean) => {
     ? `${base} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")} 전까지 작성해주세요!`
     : `${base} 까지 작성해주세요!`;
 };
-function announcement(p: Practice) {
-  if (p.type === "regular")
-    return `{정규습사 ${p.round}회차}\n\n일시: ${koDate(p.date)} ${p.start}-${p.end}\n\n장소: ${p.place}\n인솔: ${p.leader || "미정"}\n\n마감일: ${deadlineText(p.deadline, true)}\n\n${p.timetable || `${p.start} ${p.place} 습사\n${p.end} 마무리`}\n\n${p.note || "함께 가고싶은 신구사분들은 댓글로 이름 적어주세요!"}`;
+const deadlineCardText = (value: string) => {
+  const d = new Date(value);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일(${"일월화수목금토"[d.getDay()]}) ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+const defaultCopyFormats = {
+  reminder: "{date} {time} {place}에서 습사 예정입니다!",
+  added: "{name} {date} 습사 참여합니다!",
+  announcementRegular: "{title}\n\n일시: {date} {start}-{end}\n\n장소: {place}\n인솔: {leader}\n\n마감일: {deadline}\n\n{timetable}\n\n{note}",
+  announcementGeneral: "{title}\n\n일시: {date} {start}~{end}\n장소: {place}\n\n{applicants}\n\n마감일: {deadline}\n\n{note}",
+  announcementCompetition: "{title}\n\n일시: {date} {start}~{end}\n장소: {place}\n\n{applicants}\n\n마감일: {deadline}\n\n{note}",
+};
+type CopyFormats = typeof defaultCopyFormats;
+function announcement(p: Practice, formats: CopyFormats) {
   const names = [...p.applicants, ""]
     .map((n, i) => `${i + 1}. ${n}`)
     .join("\n");
-  return `{${p.title}}\n\n일시: ${shortDate(p.date)} ${p.start}~${p.end}${p.timeNote ? `(${p.timeNote})` : ""}\n장소: ${p.place}\n\n${names}\n\n마감일: ${deadlineText(p.deadline, false)}\n\n${p.note ? `- ${p.note}` : ""}`;
+  const template = p.type === "regular" ? formats.announcementRegular : p.type === "competition" ? formats.announcementCompetition : formats.announcementGeneral;
+  const values: Record<string, string> = {
+    title: p.type === "regular" ? `{정규습사 ${p.round}회차}` : `{${p.title}}`, date: p.type === "regular" ? koDate(p.date) : shortDate(p.date), start: p.start, end: p.end,
+    place: p.place, leader: p.leader || "미정", deadline: deadlineText(p.deadline, p.type === "regular"),
+    timetable: p.timetable || `${p.start} ${p.place} 습사\n${p.end} 마무리`, applicants: names,
+    note: p.note || "",
+  };
+  return Object.entries(values).reduce((text, [key, value]) => text.split(`{${key}}`).join(value), template);
+}
+
+const authEmail = (studentId: string) => `${studentId.trim()}@simgunghoe.local`;
+
+function LoginScreen({ error, onRegister }: { error?: string; onRegister: (details: { studentId: string; password: string; name: string; joinTerm: string }) => Promise<void> }) {
+  const [studentId, setStudentId] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [joinTerm, setJoinTerm] = useState("26-2");
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [message, setMessage] = useState(error || "");
+  const [submitting, setSubmitting] = useState(false);
+  const login = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setMessage("");
+    try {
+      await signInWithEmailAndPassword(auth, authEmail(studentId), password);
+    } catch {
+      setMessage("학번 또는 비밀번호를 다시 확인해주세요.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  const register = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setMessage("");
+    try {
+      await onRegister({ studentId, password, name, joinTerm });
+    } catch (registrationError: unknown) {
+      const code = typeof registrationError === "object" && registrationError && "code" in registrationError ? String(registrationError.code) : "";
+      setMessage(code === "auth/email-already-in-use" ? "이미 가입된 학번입니다. 로그인해주세요." : "회원가입을 완료하지 못했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <main className="login-screen">
+      <section className="login-card">
+        <span className="brandmark"><img src="/hanyang-mark.png" alt="한양대학교 마크" /></span>
+        <p className="eyebrow">한양대학교 국궁동아리</p>
+        <h1>심궁회<br /><em>습사 일정표</em></h1>
+        <p>{mode === "login" ? "학번과 비밀번호로 로그인해주세요." : "가입 후 바로 습사 일정표를 이용할 수 있어요."}</p>
+        <form onSubmit={mode === "login" ? login : register}>
+          <label>학번<input value={studentId} onChange={(e) => setStudentId(e.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={10} placeholder="학번" required /></label>
+          {mode === "signup" && <>
+            <label>이름<input value={name} onChange={(e) => setName(e.target.value)} placeholder="이름" required /></label>
+            <label>입부 시기<input value={joinTerm} onChange={(e) => setJoinTerm(e.target.value)} placeholder="예: 26-2" pattern="[0-9]{2}-[12]" required /></label>
+          </>}
+          <label>비밀번호<input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="비밀번호" required /></label>
+          {message && <small className="login-error">{message}</small>}
+          <button className="primary" disabled={submitting}>{submitting ? "처리 중" : mode === "login" ? "로그인" : "회원가입"}</button>
+          <button className="text-button" type="button" onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMessage(""); }}>
+            {mode === "login" ? "회원가입" : "로그인"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function BootstrapAdmin({ studentId, onSave }: { studentId: string; onSave: (member: Member) => void }) {
+  const [name, setName] = useState("");
+  const [joinTerm, setJoinTerm] = useState("26-2");
+  return (
+    <main className="login-screen">
+      <section className="login-card">
+        <span className="brandmark"><img src="/hanyang-mark.png" alt="한양대학교 마크" /></span>
+        <p className="eyebrow">최초 설정</p>
+        <h1>첫 관리자<br /><em>등록하기</em></h1>
+        <p>회원 목록이 비어 있습니다. 본인 정보를 입력해 첫 관리자로 등록해주세요.</p>
+        <form onSubmit={(e) => { e.preventDefault(); onSave({ id: studentId, name, joinTerm, grade: gradeFor(joinTerm, "26-2"), role: "관리자", position: "교육팀장" }); }}>
+          <label>이름<input value={name} onChange={(e) => setName(e.target.value)} placeholder="이름" required /></label>
+          <label>입부 시기<input value={joinTerm} onChange={(e) => setJoinTerm(e.target.value)} placeholder="예: 26-2" pattern="[0-9]{2}-[12]" required /></label>
+          <button className="primary">첫 관리자 등록</button>
+        </form>
+      </section>
+    </main>
+  );
 }
 
 export default function Home() {
   const [practices, setPractices] = useState<Practice[]>(seedPractices);
   const [view, setView] = useState<"cards" | "calendar" | "members">("cards");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
-  const [filter, setFilter] = useState<"all" | "open" | "regular">("all");
+  const [filter, setFilter] = useState<"all" | "regular" | "general" | "competition">("all");
   const [toast, setToast] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Practice | null>(null);
   const [participants, setParticipants] = useState<Practice | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<number | null>(null);
   const [cardMenu, setCardMenu] = useState<number | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [copyFormats, setCopyFormats] = useState({
-    reminder: "{date} {time} {place}에서 습사 예정입니다!",
-    added: "{name} {date} 습사 참여합니다!",
-  });
+  const [copyFormats, setCopyFormats] = useState<CopyFormats>(defaultCopyFormats);
   const [clubMembers, setClubMembers] = useState<Member[]>(initialMembers);
   const [session, setSession] = useState<Member>(initialMembers[0]);
   const [currentTerm, setCurrentTerm] = useState("26-2");
   const [ready, setReady] = useState(false);
+  const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
+  const [accessError, setAccessError] = useState("");
+  const [needsBootstrap, setNeedsBootstrap] = useState(false);
+  const cloudState = useRef("");
+  const registrationInProgress = useRef(false);
   useEffect(() => {
-    const saved = localStorage.getItem("simgung-practices");
-    const savedMembers = localStorage.getItem("simgung-members");
-    const savedTerm = localStorage.getItem("simgung-current-term") || "26-2";
-    const savedFormats = localStorage.getItem("simgung-copy-formats");
-    const userId = localStorage.getItem("simgung-session");
-    if (saved) setPractices(JSON.parse(saved));
-    if (savedFormats) setCopyFormats(JSON.parse(savedFormats));
-    if (savedMembers) {
-      const parsed = (JSON.parse(savedMembers) as Member[]).map((m) => {
-        const joinTerm =
-          m.joinTerm ||
-          (m.grade === "예비신사"
-            ? "26-2"
-            : m.grade === "신사"
-              ? "26-1"
-              : "25-2");
-        return { ...m, joinTerm, grade: gradeFor(joinTerm, savedTerm) };
-      });
-      setClubMembers(parsed);
-      setSession(parsed.find((m) => m.id === userId) || parsed[0]);
-    } else if (userId)
-      setSession(
-        initialMembers.find((m) => m.id === userId) || initialMembers[0],
-      );
-    setCurrentTerm(savedTerm);
-    setReady(true);
+    return onAuthStateChanged(auth, setAuthUser);
   }, []);
   useEffect(() => {
-    if (ready)
-      localStorage.setItem("simgung-practices", JSON.stringify(practices));
-  }, [practices, ready]);
+    if (!authUser) return;
+    const clubDoc = doc(db, "clubs", "simgunghoe");
+    return onSnapshot(clubDoc, (snapshot) => {
+      if (!snapshot.exists()) {
+        void setDoc(clubDoc, { practices: seedPractices, members: [], currentTerm: "26-2", copyFormats: defaultCopyFormats }).catch(() => {
+          setAccessError("공동 일정판을 준비하지 못했어요. 다시 로그인한 뒤 시도해주세요.");
+          void signOut(auth);
+        });
+        return;
+      }
+      const data = snapshot.data();
+      const term = typeof data.currentTerm === "string" ? data.currentTerm : "26-2";
+      const members = Array.isArray(data.members) ? (data.members as Member[]).map((m) => ({ ...m, grade: gradeFor(m.joinTerm, term) })) : initialMembers;
+      const studentId = authUser.email?.split("@")[0];
+      if (members.length === 0 && studentId) {
+        const emptyState = { practices: Array.isArray(data.practices) ? data.practices as Practice[] : seedPractices, members: [], currentTerm: term, copyFormats: { ...defaultCopyFormats, ...(data.copyFormats || {}) } };
+        cloudState.current = JSON.stringify(emptyState);
+        setPractices(emptyState.practices);
+        setClubMembers([]);
+        setCurrentTerm(term);
+        setCopyFormats(emptyState.copyFormats);
+        setNeedsBootstrap(true);
+        setReady(true);
+        return;
+      }
+      const member = members.find((m) => m.id === studentId);
+      if (!member) {
+        if (registrationInProgress.current) return;
+        setAccessError("등록된 회원이 아닙니다. 관리자에게 문의해주세요.");
+        void signOut(auth);
+        return;
+      }
+      const next = { practices: Array.isArray(data.practices) ? data.practices as Practice[] : seedPractices, members, currentTerm: term, copyFormats: { ...defaultCopyFormats, ...(data.copyFormats || {}) } };
+      cloudState.current = JSON.stringify(next);
+      setPractices(next.practices);
+      setClubMembers(next.members);
+      setCurrentTerm(next.currentTerm);
+      setCopyFormats(next.copyFormats);
+      setSession(member);
+      setReady(true);
+    }, () => {
+      setAccessError("공동 일정 데이터를 불러오지 못했어요. 다시 로그인한 뒤 시도해주세요.");
+      void signOut(auth);
+    });
+  }, [authUser]);
   useEffect(() => {
-    if (ready) localStorage.setItem("simgung-session", session.id);
-  }, [session, ready]);
-  useEffect(() => {
-    if (ready)
-      localStorage.setItem("simgung-members", JSON.stringify(clubMembers));
-  }, [clubMembers, ready]);
-  useEffect(() => {
-    if (ready) localStorage.setItem("simgung-current-term", currentTerm);
-  }, [currentTerm, ready]);
-  useEffect(() => {
-    if (ready)
-      localStorage.setItem("simgung-copy-formats", JSON.stringify(copyFormats));
-  }, [copyFormats, ready]);
-  const today = new Date("2026-09-11T12:00:00");
+    if (!ready || !authUser) return;
+    const next = JSON.stringify({ practices, members: clubMembers, currentTerm, copyFormats });
+    if (cloudState.current === next) return;
+    cloudState.current = next;
+    void setDoc(doc(db, "clubs", "simgunghoe"), { practices, members: clubMembers, currentTerm, copyFormats }).catch(() => {
+      cloudState.current = "";
+      setAccessError("공동 데이터 저장에 실패했어요. 잠시 후 다시 시도해주세요.");
+    });
+  }, [practices, clubMembers, currentTerm, copyFormats, ready, authUser]);
+  const finishBootstrap = async (member: Member) => {
+    const next = { practices, members: [member], currentTerm, copyFormats };
+    try {
+      await setDoc(doc(db, "clubs", "simgunghoe"), next);
+      cloudState.current = JSON.stringify(next);
+      setClubMembers([member]);
+      setSession(member);
+      setNeedsBootstrap(false);
+    } catch {
+      setAccessError("첫 관리자 등록에 실패했어요. 다시 로그인한 뒤 시도해주세요.");
+      await signOut(auth);
+    }
+  };
+  const registerMember = async ({ studentId, password, name, joinTerm }: { studentId: string; password: string; name: string; joinTerm: string }) => {
+    registrationInProgress.current = true;
+    try {
+      await createUserWithEmailAndPassword(auth, authEmail(studentId), password);
+      const clubDoc = doc(db, "clubs", "simgunghoe");
+      const snapshot = await getDoc(clubDoc);
+      if (!snapshot.exists()) throw new Error("club-not-ready");
+      const data = snapshot.data();
+      const term = typeof data.currentTerm === "string" ? data.currentTerm : "26-2";
+      const existing = Array.isArray(data.members) ? data.members as Member[] : [];
+      if (existing.some((member) => member.id === studentId)) throw new Error("duplicate-member");
+      const member: Member = { id: studentId, name: name.trim(), joinTerm, grade: gradeFor(joinTerm, term), role: "회원", position: "" };
+      await setDoc(clubDoc, { members: [...existing, member] }, { merge: true });
+    } finally {
+      registrationInProgress.current = false;
+    }
+  };
+  const today = new Date();
   const visible = useMemo(
     () =>
       practices
         .filter((p) => {
-          const age = Math.floor(
-            (today.getTime() - new Date(`${p.date}T23:59:59`).getTime()) /
-              86400000,
-          );
-          if (age > 3) return false;
+          if (new Date(`${p.date}T${p.end || "23:59"}`).getTime() < today.getTime() - 24 * 60 * 60 * 1000) return false;
           if (filter === "regular" && p.type !== "regular") return false;
-          if (filter === "open" && new Date(p.deadline) < today) return false;
+          if (filter === "general" && p.type !== "general") return false;
+          if (filter === "competition" && p.type !== "competition") return false;
           return true;
         })
         .sort(
@@ -242,6 +387,10 @@ export default function Home() {
         )[0],
     [practices],
   );
+  if (authUser === undefined) return <main className="login-screen"><p>심궁회 일정표를 준비하고 있어요.</p></main>;
+  if (!authUser) return <LoginScreen error={accessError} onRegister={registerMember} />;
+  if (!ready) return <main className="login-screen"><p>공동 일정을 불러오고 있어요.</p></main>;
+  if (needsBootstrap) return <BootstrapAdmin studentId={authUser.email?.split("@")[0] || ""} onSave={(member) => { void finishBootstrap(member); }} />;
   const nextRegularRound =
     Math.max(
       0,
@@ -266,24 +415,25 @@ export default function Home() {
     await navigator.clipboard.writeText(text);
     notify(message);
   };
-  const toggleJoin = (id: number) =>
-    setPractices((all) =>
-      all.map((p) => {
-        if (p.id !== id) return p;
-        const joined = p.applicants.includes(session.name);
-        if (!joined && p.capacity > 0 && p.applicants.length >= p.capacity) {
-          notify("정원이 모두 찼어요");
-          return p;
-        }
-        notify(joined ? "신청을 취소했어요" : "참가 신청했어요");
-        return {
-          ...p,
-          applicants: joined
-            ? p.applicants.filter((n) => n !== session.name)
-            : [...p.applicants, session.name],
-        };
-      }),
-    );
+  const toggleJoin = (id: number) => {
+    const practice = practices.find((item) => item.id === id);
+    if (practice?.applicants.includes(session.name)) {
+      setCancelTarget(id);
+      return;
+    }
+    if (practice && practice.capacity > 0 && practice.applicants.length >= practice.capacity) {
+      notify("정원이 모두 찼어요");
+      return;
+    }
+    setPractices((all) => all.map((p) => p.id === id ? { ...p, applicants: [...p.applicants, session.name] } : p));
+    notify("참가 신청했어요");
+  };
+  const confirmCancellation = () => {
+    if (cancelTarget === null) return;
+    setPractices((all) => all.map((p) => p.id === cancelTarget ? { ...p, applicants: p.applicants.filter((name) => name !== session.name) } : p));
+    setCancelTarget(null);
+    notify("신청을 취소했어요");
+  };
   return (
     <main>
       <header className="topbar">
@@ -313,22 +463,13 @@ export default function Home() {
               · {session.role}
             </small>
           </span>
-          <select
-            aria-label="데모 계정 전환"
-            value={session.id}
-            onChange={(e) =>
-              setSession(clubMembers.find((m) => m.id === e.target.value)!)
-            }
-          >
-            {clubMembers.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+          <button className="logout" onClick={() => void signOut(auth)}>
+            로그아웃
+          </button>
         </div>
       </header>
       <section className="hero">
+        <img className="hero-logo" src="/simkoong-heart.png" alt="심궁회 로고" />
         <div>
           <p className="eyebrow">한양대학교 국궁동아리</p>
           <h1>
@@ -362,11 +503,9 @@ export default function Home() {
             <i
               style={{
                 width:
-                  nextPractice && nextPractice.capacity > 0
-                    ? `${Math.min(100, (nextPractice.applicants.length / nextPractice.capacity) * 100)}%`
-                    : nextPractice
-                      ? "18%"
-                      : "0%",
+                  nextPractice
+                    ? `${Math.min(100, (nextPractice.applicants.length / (nextPractice.capacity > 0 ? nextPractice.capacity : 10)) * 100)}%`
+                    : "0%",
               }}
             />
           </div>
@@ -402,17 +541,15 @@ export default function Home() {
           <div className="section-head">
             <div>
               <h2>습사 일정</h2>
-              <p>지난 습사는 3일 동안 흐리게 표시돼요.</p>
+              <p>지난 습사는 종료 후 하루 동안 표시돼요.</p>
             </div>
-            {session.role === "관리자" && (
-              <button
-                className="primary add-button"
-                onClick={() => setShowForm(true)}
-                aria-label="습사 등록"
-              >
-                <span aria-hidden="true">＋</span>
-              </button>
-            )}
+            <button
+              className="primary add-button"
+              onClick={() => setShowForm(true)}
+              aria-label="습사 등록"
+            >
+              <span aria-hidden="true">＋</span>
+            </button>
           </div>
           <div className="toolbar">
             <div className="chips">
@@ -423,16 +560,22 @@ export default function Home() {
                 전체
               </button>
               <button
-                className={filter === "open" ? "selected" : ""}
-                onClick={() => setFilter("open")}
-              >
-                신청 가능
-              </button>
-              <button
                 className={filter === "regular" ? "selected" : ""}
                 onClick={() => setFilter("regular")}
               >
                 정규습사
+              </button>
+              <button
+                className={filter === "general" ? "selected" : ""}
+                onClick={() => setFilter("general")}
+              >
+                자유습사
+              </button>
+              <button
+                className={filter === "competition" ? "selected" : ""}
+                onClick={() => setFilter("competition")}
+              >
+                대회
               </button>
             </div>
             <button
@@ -444,7 +587,7 @@ export default function Home() {
           </div>
           <div className="cards">
             {visible.map((p) => {
-              const past = new Date(`${p.date}T23:59:59`) < today;
+              const past = new Date(`${p.date}T${p.end || "23:59"}`) < today;
               const joined = p.applicants.includes(session.name);
               return (
                 <article
@@ -513,7 +656,7 @@ export default function Home() {
                           >
                             인원 추가 복사
                           </button>
-                          {session.role === "관리자" && (
+                          {(session.role === "관리자" || p.createdBy === session.id) && (
                             <>
                               <button
                                 onClick={() => {
@@ -548,16 +691,7 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="date-block">
-                    <b>{new Date(`${p.date}T12:00:00`).getDate()}</b>
-                    <span>
-                      {new Date(`${p.date}T12:00:00`).getMonth() + 1}월 ·{" "}
-                      {
-                        "일월화수목금토"[
-                          new Date(`${p.date}T12:00:00`).getDay()
-                        ]
-                      }
-                      요일
-                    </span>
+                    <b className="date-full">{koDate(p.date)}</b>
                   </div>
                   <h3>{p.title}</h3>
                   <p className="meta">
@@ -566,9 +700,16 @@ export default function Home() {
                     </span>
                     <span>⌖ {p.place}</span>
                     {p.type !== "general" && p.leader && p.leader !== "null" && (
-                      <span>인솔 {p.leader}</span>
+                      <span>인솔: {p.leader}</span>
                     )}
+                    <span>마감: {deadlineCardText(p.deadline)}</span>
+                    {p.timeNote && <span>{p.timeNote}</span>}
                   </p>
+                  {p.type === "regular" && p.timetable && (
+                    <div className="card-timetable">
+                      {p.timetable.split("\n").filter(Boolean).map((item) => <span key={item}>{item}</span>)}
+                    </div>
+                  )}
                   {p.note && <p className="note">{p.note}</p>}
                   <button
                     className="people"
@@ -591,7 +732,7 @@ export default function Home() {
                   <div className="card-actions">
                     <button
                       className="copy"
-                      onClick={() => copy(announcement(p))}
+                      onClick={() => copy(announcement(p, copyFormats))}
                     >
                       공지 복사
                     </button>
@@ -611,7 +752,7 @@ export default function Home() {
             className="copy-all"
             onClick={() =>
               copy(
-                visible.map(announcement).join("\n\n──────────\n\n"),
+                visible.map((practice) => announcement(practice, copyFormats)).join("\n\n──────────\n\n"),
                 "표시된 습사를 모두 복사했어요",
               )
             }
@@ -622,7 +763,7 @@ export default function Home() {
       )}
       {view === "calendar" && (
         <Calendar
-          practices={visible}
+          practices={practices}
           onSelect={(id) => {
             setView("cards");
             window.setTimeout(
@@ -665,6 +806,7 @@ export default function Home() {
             notify("회원 정보를 수정했어요");
           }}
           onRoleChange={(id, role) => {
+            const target = clubMembers.find((member) => member.id === id);
             if (
               role === "회원" &&
               clubMembers.filter((m) => m.role === "관리자").length === 1
@@ -672,6 +814,7 @@ export default function Home() {
               notify("다른 관리자를 먼저 승급해주세요");
               return;
             }
+            if (!window.confirm(`${target?.name || "해당 회원"}님을 ${role === "관리자" ? "관리자로 승급" : "관리자에서 해제"}할까요?`)) return;
             const next = clubMembers.map((m) =>
               m.id === id
                 ? { ...m, role, position: role === "회원" ? "" : m.position }
@@ -690,6 +833,24 @@ export default function Home() {
                 : "관리자 권한을 포기했어요",
             );
           }}
+          onDeleteMember={(member) => {
+            if (member.id === session.id) {
+              notify("내 계정은 프로필에서 탈퇴해주세요");
+              return;
+            }
+            if (member.role === "관리자" && clubMembers.filter((m) => m.role === "관리자").length === 1) {
+              notify("마지막 관리자는 삭제할 수 없어요");
+              return;
+            }
+            if (!window.confirm(`${member.name} 회원의 계정 데이터를 삭제할까요?`)) return;
+            const remaining = clubMembers.filter((item) => item.id !== member.id);
+            void setDoc(doc(db, "clubs", "simgunghoe"), { members: remaining }, { merge: true })
+              .then(() => {
+                setClubMembers(remaining);
+                notify("회원 계정 데이터를 삭제했어요");
+              })
+              .catch(() => notify("회원 삭제에 실패했어요. 다시 시도해주세요."));
+          }}
         />
       )}
       {participants && (
@@ -698,6 +859,17 @@ export default function Home() {
           members={clubMembers}
           onClose={() => setParticipants(null)}
         />
+      )}
+      {cancelTarget !== null && (
+        <div className="modal-back cancel-confirm" role="dialog" aria-modal="true">
+          <section className="modal confirm-card">
+            <p>정말 취소하시겠어요? 😢</p>
+            <div className="modal-actions">
+              <button onClick={() => setCancelTarget(null)}>아니오</button>
+              <button className="primary" onClick={confirmCancellation}>네</button>
+            </div>
+          </section>
+        </div>
       )}
       {profileOpen && (
         <ProfilePanel
@@ -730,6 +902,17 @@ export default function Home() {
             setProfileOpen(false);
             notify("관리자 권한과 운영진 역할을 포기했어요");
           }}
+          onWithdraw={async () => {
+            if (!window.confirm("정말 탈퇴할까요? 회원 정보와 일정표 접근 권한이 삭제됩니다.")) return;
+            const remaining = clubMembers.filter((m) => m.id !== session.id);
+            if (session.role === "관리자" && !remaining.some((m) => m.role === "관리자")) {
+              notify("다른 관리자를 먼저 승급해주세요");
+              return;
+            }
+            await setDoc(doc(db, "clubs", "simgunghoe"), { members: remaining }, { merge: true });
+            try { if (auth.currentUser) await deleteUser(auth.currentUser); } catch { /* 회원 기록 삭제 후에는 일정표 접근이 차단됩니다. */ }
+            await signOut(auth);
+          }}
         />
       )}
       {(showForm || editing) && (
@@ -753,7 +936,7 @@ export default function Home() {
             } else {
               setPractices((v) => [
                 ...v,
-                { ...p, id: Date.now(), applicants: [] },
+                { ...p, id: Date.now(), applicants: [], createdBy: session.id },
               ]);
               notify("새 습사를 등록했어요");
             }
@@ -775,14 +958,16 @@ function ProfilePanel({
   onClose,
   onSave,
   onRelinquish,
+  onWithdraw,
 }: {
   member: Member;
   currentTerm: string;
-  copyFormats: { reminder: string; added: string };
-  onFormats: (v: { reminder: string; added: string }) => void;
+  copyFormats: CopyFormats;
+  onFormats: (v: CopyFormats) => void;
   onClose: () => void;
   onSave: (m: Member) => void;
   onRelinquish: () => void;
+  onWithdraw: () => Promise<void>;
 }) {
   const [tab, setTab] = useState<"info" | "admin">("info");
   const [draft, setDraft] = useState(member);
@@ -893,6 +1078,19 @@ function ProfilePanel({
                     사용 가능: {"{name} {date}"}
                   </small>
                 </label>
+                <label>
+                  정규습사 공지 형식
+                  <textarea value={copyFormats.announcementRegular} onChange={(e) => onFormats({ ...copyFormats, announcementRegular: e.target.value })} />
+                </label>
+                <label>
+                  자유습사 공지 형식
+                  <textarea value={copyFormats.announcementGeneral} onChange={(e) => onFormats({ ...copyFormats, announcementGeneral: e.target.value })} />
+                </label>
+                <label>
+                  대회 공지 형식
+                  <textarea value={copyFormats.announcementCompetition} onChange={(e) => onFormats({ ...copyFormats, announcementCompetition: e.target.value })} />
+                  <small className="field-help">사용 가능: {"{title} {date} {start} {end} {place} {leader} {deadline} {timetable} {applicants} {note}"}</small>
+                </label>
                 <button className="relinquish" onClick={onRelinquish}>
                   관리자 권한 포기
                 </button>
@@ -902,6 +1100,7 @@ function ProfilePanel({
             )}
           </div>
         )}
+        {tab === "info" && <button className="relinquish withdraw" onClick={() => void onWithdraw()}>계정 탈퇴</button>}
       </section>
     </div>
   );
@@ -1032,6 +1231,7 @@ function Members({
   onAddMember,
   onUpdateMember,
   onRoleChange,
+  onDeleteMember,
 }: {
   members: Member[];
   session: Member;
@@ -1040,15 +1240,21 @@ function Members({
   onAddMember: (member: Member) => boolean;
   onUpdateMember: (member: Member) => void;
   onRoleChange: (id: string, role: Member["role"]) => void;
+  onDeleteMember: (member: Member) => void;
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [termYear, termSemester] = currentTerm.split("-").map(Number);
+  const moveTerm = (direction: 1 | -1) => {
+    const nextSemester = termSemester + direction;
+    const nextYear = nextSemester === 3 ? termYear + 1 : nextSemester === 0 ? termYear - 1 : termYear;
+    onCurrentTermChange(`${String(Math.max(0, nextYear)).padStart(2, "0")}-${nextSemester === 3 ? 1 : nextSemester === 0 ? 2 : nextSemester}`);
+  };
   return (
     <section className="content">
       <div className="section-head">
         <div>
-          <h2>회원</h2>
-          <p>입부 학기를 기준으로 등급이 자동 지정돼요.</p>
+          <h2>회원 <span className="member-count">{members.length}명</span></h2>
         </div>
         {session.role === "관리자" && (
           <button
@@ -1063,26 +1269,12 @@ function Members({
       <div className="term-setting">
         <div>
           <b>현재 학기</b>
-          <small>등급 계산 기준</small>
         </div>
         {session.role === "관리자" ? (
-          <select
-            value={currentTerm}
-            onChange={(e) => onCurrentTermChange(e.target.value)}
-          >
-            {[
-              "27-2",
-              "27-1",
-              "26-2",
-              "26-1",
-              "25-2",
-              "25-1",
-              "24-2",
-              "24-1",
-            ].map((term) => (
-              <option key={term}>{term}</option>
-            ))}
-          </select>
+          <div className="term-stepper" aria-label="현재 학기 설정">
+            <b>{currentTerm}</b>
+            <span className="term-controls"><button onClick={() => moveTerm(1)} aria-label="다음 학기">+</button><button onClick={() => moveTerm(-1)} aria-label="이전 학기">−</button></span>
+          </div>
         ) : (
           <strong>{currentTerm}</strong>
         )}
@@ -1116,6 +1308,7 @@ function Members({
                       : "관리자 해제"
                     : "관리자 승급"}
                 </button>
+                <button className="danger" onClick={() => onDeleteMember(m)}>계정 삭제</button>
               </div>
             )}
           </div>
@@ -1141,14 +1334,6 @@ function Members({
           }}
         />
       )}
-      <div className="security-note">
-        <b>로그인 안내</b>
-        <p>
-          현재 로컬 시제품은 계정 전환으로 기능을 확인할 수 있습니다. 실제 배포
-          시에는 학번과 최초 비밀번호를 사용하고 로그인 상태를 안전하게
-          유지합니다.
-        </p>
-      </div>
     </section>
   );
 }
@@ -1248,6 +1433,19 @@ function MemberForm({
   );
 }
 
+const halfHourTimes = Array.from({ length: 48 }, (_, index) => `${String(Math.floor(index / 2)).padStart(2, "0")}:${index % 2 ? "30" : "00"}`);
+function TimeSelect({ name, value, onChange }: { name?: string; value: string; onChange?: (value: string) => void }) {
+  return onChange
+    ? <select value={value} onChange={(e) => onChange(e.target.value)}>{halfHourTimes.map((time) => <option key={time}>{time}</option>)}</select>
+    : <select name={name} defaultValue={value}>{halfHourTimes.map((time) => <option key={time}>{time}</option>)}</select>;
+}
+const timetableItems = (timetable?: string) => {
+  const parsed = (timetable || "").split("\n").filter(Boolean).map((line) => {
+    const match = line.match(/^(\d{1,2}:\d{2})\s*(.*)$/);
+    return { time: match?.[1]?.padStart(5, "0") || "09:00", content: match?.[2] || line };
+  });
+  return parsed.length ? parsed : [{ time: "09:00", content: "" }];
+};
 function PracticeForm({
   initial,
   nextRegularRound,
@@ -1264,27 +1462,28 @@ function PracticeForm({
   );
   const [unlimited, setUnlimited] = useState(initial?.capacity === 0);
   const [mandatory, setMandatory] = useState(initial?.mandatory || false);
+  const [scheduleItems, setScheduleItems] = useState(() => timetableItems(initial?.timetable));
+  const localToday = new Date();
+  const todayDate = `${localToday.getFullYear()}-${String(localToday.getMonth() + 1).padStart(2, "0")}-${String(localToday.getDate()).padStart(2, "0")}`;
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
-    onSave({
+    const base = {
       type,
-      title: String(f.get("title")),
-      round: type === "regular" ? Number(f.get("round")) : undefined,
+      title: type === "regular" ? `정규습사 ${String(f.get("round") || nextRegularRound)}회차` : type === "competition" ? "대회" : "자유 습사",
       date: String(f.get("date")),
       start: String(f.get("start")),
       end: String(f.get("end")),
       place: String(f.get("place")),
-      leader:
-        type === "general"
-          ? undefined
-          : String(f.get("leader") || "").trim() || undefined,
-      deadline: String(f.get("deadline")),
+      deadline: `${String(f.get("deadlineDate"))}T${String(f.get("deadlineTime"))}`,
       capacity: unlimited ? 0 : Number(f.get("capacity")),
       mandatory,
       note: String(f.get("note")),
-      timetable: type === "regular" ? String(f.get("timetable")) : "",
-    });
+      timetable: type === "regular" ? scheduleItems.filter((item) => item.content.trim()).map((item) => `${item.time} ${item.content.trim()}`).join("\n") : "",
+    };
+    onSave(type === "regular"
+      ? { ...base, round: Number(f.get("round")), leader: String(f.get("leader") || "").trim() }
+      : base);
   };
   return (
     <div
@@ -1346,34 +1545,17 @@ function PracticeForm({
             </button>
           </div>
         </label>
-        <div className="form-row">
+        {type === "regular" && <div className="form-row">
           <label>
-            제목
+            회차
             <input
-              name="title"
-              required
-              defaultValue={
-                initial?.title ||
-                (type === "regular"
-                  ? `정규습사 ${nextRegularRound}회차`
-                  : type === "competition"
-                    ? "대회"
-                    : "자유 습사")
-              }
+              name="round"
+              type="number"
+              min="1"
+              defaultValue={initial?.round || nextRegularRound}
             />
           </label>
-          {type === "regular" && (
-            <label>
-              회차
-              <input
-                name="round"
-                type="number"
-                min="1"
-                defaultValue={initial?.round || nextRegularRound}
-              />
-            </label>
-          )}
-        </div>
+        </div>}
         <div className="form-row three">
           <label>
             날짜
@@ -1381,26 +1563,16 @@ function PracticeForm({
               name="date"
               type="date"
               required
-              defaultValue={initial?.date || "2026-10-03"}
+              defaultValue={initial?.date || todayDate}
             />
           </label>
           <label>
             시작
-            <input
-              name="start"
-              type="time"
-              required
-              defaultValue={initial?.start || "14:00"}
-            />
+            <TimeSelect name="start" value={initial?.start || "14:00"} />
           </label>
           <label>
             종료
-            <input
-              name="end"
-              type="time"
-              required
-              defaultValue={initial?.end || "16:00"}
-            />
+            <TimeSelect name="end" value={initial?.end || "16:00"} />
           </label>
         </div>
         <div className="form-row">
@@ -1409,41 +1581,32 @@ function PracticeForm({
             <input
               name="place"
               required
-              defaultValue={initial?.place || "부천정"}
+              defaultValue={initial?.place || ""}
             />
           </label>
-          {type !== "general" && (
+          {type === "regular" && (
             <label>
               인솔자
-              <input name="leader" defaultValue={initial?.leader || "변수인"} />
+              <input name="leader" defaultValue={initial?.leader || ""} />
             </label>
           )}
         </div>
-        {type === "regular" && (
-          <label>
-            시간별 일정
-            <textarea
-              name="timetable"
-              rows={4}
-              defaultValue={
-                initial?.timetable ||
-                "09:00 동아리방에서 출발\n10:00 난지 국궁장 도착\n13:00 해산"
-              }
-            />
-            <small className="field-help">
-              한 줄에 하나씩 시간과 내용을 적어주세요.
-            </small>
-          </label>
-        )}
+        {type === "regular" && <div className="timetable-editor">
+          <b>시간별 일정</b>
+          {scheduleItems.map((item, index) => <div className="timetable-item" key={index}>
+            <TimeSelect value={item.time} onChange={(time) => setScheduleItems((all) => all.map((current, i) => i === index ? { ...current, time } : current))} />
+            <input value={item.content} onChange={(e) => setScheduleItems((all) => all.map((current, i) => i === index ? { ...current, content: e.target.value } : current))} placeholder="내용 입력" />
+            {scheduleItems.length > 1 && <button type="button" onClick={() => setScheduleItems((all) => all.filter((_, i) => i !== index))}>×</button>}
+          </div>)}
+          <button type="button" className="timetable-add" onClick={() => setScheduleItems((all) => [...all, { time: all.at(-1)?.time || "09:00", content: "" }])}>＋</button>
+        </div>}
         <div className="form-row">
           <label>
             신청 마감
-            <input
-              name="deadline"
-              type="datetime-local"
-              required
-              defaultValue={initial?.deadline || "2026-10-02T23:59"}
-            />
+            <div className="deadline-inputs">
+              <input name="deadlineDate" type="date" required defaultValue={initial?.deadline?.slice(0, 10) || todayDate} />
+              <TimeSelect name="deadlineTime" value={initial?.deadline?.slice(11, 16) || "23:30"} />
+            </div>
           </label>
           <label>
             정원
@@ -1451,8 +1614,9 @@ function PracticeForm({
               name="capacity"
               type="number"
               min="1"
+              required={!unlimited}
               disabled={unlimited}
-              defaultValue={initial?.capacity || 12}
+              defaultValue={initial?.capacity || ""}
             />
             <span className="unlimited-check">
               <input
@@ -1469,7 +1633,6 @@ function PracticeForm({
           <textarea
             name="note"
             rows={3}
-            placeholder="예비신사 교육이 같이 이루어집니다!!"
             defaultValue={initial?.note || ""}
           />
         </label>

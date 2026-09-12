@@ -24,7 +24,7 @@ button,input,select,textarea { font:inherit; } button { cursor:pointer; }
 .section-head h2 { font-family:Georgia,"Nanum Myeongjo",serif; font-size:29px; margin:0 0 7px; } .section-head p { color:var(--muted); margin:0; font-size:14px; }
 .primary { border:0; background:var(--green)!important; color:white!important; padding:12px 17px; border-radius:10px; font-weight:700; box-shadow:0 3px 10px #1d594324; }
 .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; } .chips { display:flex; gap:7px; }
-.chips button,.sort { border:1px solid var(--line); background:#fff; color:var(--muted); padding:9px 13px; border-radius:9px; } .chips button.selected { background:var(--navy); color:#fff; border-color:var(--navy); }
+.chips button,.sort { border:1px solid var(--line); background:#fff; color:var(--muted); padding:9px 13px; border-radius:9px; } .chips button { padding:6px 9px; font-size:10px; } .chips button.selected { background:var(--navy); color:#fff; border-color:var(--navy); }
 .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; } .card { background:#fff; border:1px solid var(--line); border-radius:18px; padding:22px; box-shadow:0 8px 30px #1b312708; transition:.2s; }
 .card:hover { transform:translateY(-3px); box-shadow:0 12px 34px #1b312714; } .card.past { opacity:.6; filter:grayscale(.35); } .card-top { display:flex; justify-content:space-between; }
 .card.mandatory { border:2px solid #d45c3f; background:linear-gradient(145deg,#fff 52%,#fff4ef); box-shadow:0 9px 28px #b64e3024; } .card { position:relative; overflow:visible; }
@@ -32,6 +32,18 @@ button,input,select,textarea { font:inherit; } button { cursor:pointer; }
 .badge { padding:6px 9px; border-radius:6px; font-size:11px; font-weight:800; } .badge.regular { color:#195941; background:#dceee6; } .badge.general { color:#8d4a27; background:#f6e5d9; } .badge.ended { color:#666; background:#eee; }
 .more { border:0; background:none; color:#89918d; letter-spacing:2px; } .date-block { display:flex; align-items:baseline; gap:8px; margin-top:22px; } .date-block b { font-family:Georgia,serif; font-size:40px; font-weight:500; } .date-block span { font-weight:700; color:var(--muted); }
 .card h3 { font-size:19px; margin:2px 0 15px; } .meta { display:flex; gap:8px 13px; flex-wrap:wrap; color:var(--muted); font-size:13px; margin:0; }
+.date-block .date-full { font-family:inherit; font-size:27px; font-weight:800; color:var(--muted); }
+.card-timetable { display:grid; gap:6px; margin:15px 0; padding:12px; border-radius:10px; background:#e7f5e9; color:#286a3d; font-size:12px; line-height:1.45; }
+.confirm-card { width:min(330px, calc(100vw - 36px)); padding:25px 22px; border-radius:18px; }
+.confirm-card p { margin:0 0 22px; color:#24526e; font-size:16px; font-weight:800; text-align:center; }
+.cancel-confirm { align-items:center; }
+.timetable-editor { display:grid; gap:9px; margin:4px 0 16px; padding:13px; border:1px solid var(--line); border-radius:12px; background:#f7fbfd; }
+.timetable-editor>b { font-size:12px; color:#28658a; }
+.timetable-item { display:grid; grid-template-columns:94px 1fr 30px; gap:7px; align-items:center; padding:8px; border-radius:9px; background:#fff; border:1px solid #dcebf3; }
+.timetable-item select,.timetable-item input,.deadline-inputs select { min-height:40px; margin:0!important; }
+.timetable-item button { width:30px; height:30px; padding:0; border:0; border-radius:50%; background:#eef4f7; color:#51748a; }
+.timetable-add { width:36px; height:36px; padding:0; border:1px dashed #5aa5cd; border-radius:50%; background:#fff; color:#197fbd; font-size:23px; line-height:1; }
+.deadline-inputs { display:grid; grid-template-columns:1fr 94px; gap:7px; }
 .note { background:#f5f7f4; padding:10px 12px; border-radius:8px; font-size:12px; line-height:1.45; margin:16px 0; }
 .people { width:100%; display:flex; align-items:center; margin:18px 0 15px; padding:0; border:0; background:transparent; color:inherit; text-align:left; } .faces { display:flex; margin-right:8px; } .faces span { width:28px; height:28px; display:grid; place-items:center; border-radius:50%; background:var(--mint); border:2px solid white; color:var(--green); font-size:11px; font-weight:700; margin-left:-7px; } .faces span:first-child { margin-left:0; } .people small { color:var(--muted); } .people-arrow { margin-left:auto; color:#87948e; font-size:24px; }
 .card-actions { display:grid; grid-template-columns:1fr 1.2fr; gap:8px; } .card-actions button { height:42px; border-radius:9px; font-weight:700; } .copy { border:1px solid var(--line); background:white; color:var(--green); } .join { border:0; background:var(--green); color:#fff; } .joined { border:1px solid #e2b8a5; background:#fff4ef; color:#a84d26; } .card-actions button:disabled { background:#ddd; color:#777; border:0; }
@@ -62,6 +74,20 @@ main { min-height:100vh; padding-bottom:82px; }
 .brand b { font-size:16px; } .brand small { display:none; }
 .account { gap:7px; } .account-copy { display:none; } .account .avatar { width:32px; height:32px; font-size:13px; }
 .account select { width:70px; padding:7px 4px; font-size:12px; }
+.logout { border:0; border-radius:9px; padding:7px 9px; background:#edf7fc; color:#477089; font-size:11px; font-weight:700; }
+.login-screen { min-height:100vh; display:grid; place-items:center; padding:24px; background:linear-gradient(145deg,#d9f2ff,#f7fcff 55%,#bfe7f8); }
+.login-card { width:100%; padding:30px 24px; border:1px solid #ffffff; border-radius:26px; background:#ffffffdd; box-shadow:0 18px 50px #1f78aa24; backdrop-filter:blur(14px); }
+.login-card .brandmark { width:52px; height:52px; margin-bottom:21px; }
+.login-card .eyebrow { margin-bottom:8px; color:#197fbd; }
+.login-card h1 { margin:0; color:#164f76; font-family:Georgia,"Nanum Myeongjo",serif; font-size:34px; line-height:1.15; }
+.login-card h1 em { color:#278fca; font-style:normal; }
+.login-card>p { color:var(--muted); font-size:13px; margin:13px 0 24px; }
+.login-card form { display:grid; gap:14px; }
+.login-card label { color:#4e6e83; font-size:12px; font-weight:700; }
+.login-card input { width:100%; min-height:47px; margin-top:7px; padding:11px 12px; border:1px solid var(--line); border-radius:12px; background:#fff; color:var(--ink); }
+.login-card .primary { min-height:48px; margin-top:3px; }
+.login-error { color:#b84f2d; font-size:12px; }
+.login-card .text-button { width:max-content; margin:0 auto; padding:5px; border:0; background:transparent; color:#197fbd; font-size:13px; font-weight:700; }
 .hero { min-height:auto; margin:0 12px; padding:22px 20px 20px; border-radius:24px; display:block; }
 .hero:after { width:220px; height:220px; right:-100px; top:-120px; box-shadow:0 0 0 38px #ffffff08,0 0 0 76px #ffffff05; }
 .hero .eyebrow { margin-bottom:6px; font-size:10px; } .hero h1 { font-size:31px; line-height:1.12; } .hero-copy { font-size:12px; margin-top:10px; }
@@ -181,12 +207,24 @@ body { background:#f5fbff; box-shadow:0 0 45px #1b70a724; }
 }
 .next-box span,.next-box small { color:#557b94; }
 .next-box p { color:#3e6a86; }
+.hero-logo { position:absolute; z-index:1; top:10px; right:12px; width:72px; height:72px; object-fit:contain; mix-blend-mode:multiply; }
+@media(max-width:580px) { .hero-logo { top:9px; right:10px; width:70px; height:70px; } }
 .progress { background:#8fc9e45c; }
 .progress i { background:linear-gradient(90deg,#1684c3,#50b7df); }
 .tabs { box-shadow:0 -8px 28px #2476a817; }
-.card { box-shadow:0 7px 24px #2476a80d; }
+.card { border-color:#76d6ff8f; box-shadow:0 0 0 1px #b9efffa8,0 7px 24px #2476a80d,0 0 17px #76d6ff2f; }
+.card.mandatory { box-shadow:0 0 0 1px #b9efffa8,0 9px 28px #b64e3024,0 0 17px #76d6ff2f; }
 .note { background:#f0f8fc; }
 .security-note { background:#e3f3fc; color:#285f80; }
 .term-setting { background:linear-gradient(135deg,#126da8,#45a6d5); }
 .term-setting small { color:#d9f3ff; }
+.term-stepper { display:flex; align-items:center; gap:4px; }
+.term-stepper i { font-style:normal; font-size:17px; font-weight:800; }
+.term-part { display:flex; align-items:center; gap:2px; }
+.term-controls { display:grid; gap:1px; }
+.term-stepper b { font-size:18px; }
+.term-stepper button { width:20px; height:20px; padding:0; border:1px solid #ffffff52; border-radius:4px; background:#ffffff1a; color:#fff; font-size:13px; font-weight:800; line-height:15px; }
+.member-count { margin-left:5px; color:#2582b6; font-family:Arial,"Apple SD Gothic Neo",sans-serif; font-size:.54em; font-weight:800; vertical-align:middle; }
 .toast { background:#15577f; }
+.cancel-confirm { align-items:center; }
+.cancel-confirm .confirm-card { width:min(330px, calc(100vw - 36px)); max-height:none; padding:25px 22px; border-radius:18px; }
