@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import {
   createUserWithEmailAndPassword,
@@ -75,6 +75,26 @@ type PromoScene = {
   body: string;
   theme: "sky" | "ink" | "foam";
   image?: string;
+};
+type EducationSlot = {
+  educators: string[];
+  learners: string[];
+};
+type EducationSchedule = {
+  id: string;
+  startDate: string;
+  endDate: string;
+  place: string;
+  slots: Record<string, EducationSlot>;
+  createdBy: string;
+};
+type Mentor = {
+  memberId: string;
+  name: string;
+  side: "좌궁" | "우궁";
+  range: string;
+  capacity: number;
+  mentees: string[];
 };
 
 const initialMembers: Member[] = [
@@ -1056,6 +1076,10 @@ export default function Home() {
   const [publicPosts, setPublicPosts] =
     useState<PublicPost[]>(defaultPublicPosts);
   const [publicQuestions, setPublicQuestions] = useState<PublicQuestion[]>([]);
+  const [educationSchedules, setEducationSchedules] = useState<
+    EducationSchedule[]
+  >([]);
+  const [mentors, setMentors] = useState<Mentor[]>([]);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
   useEffect(() => {
@@ -1110,8 +1134,10 @@ export default function Home() {
           void setDoc(clubDoc, {
             practices: seedPractices,
             members: [],
-            currentTerm: "26-2",
-            copyFormats: defaultCopyFormats,
+          currentTerm: "26-2",
+          copyFormats: defaultCopyFormats,
+          educationSchedules: [],
+          mentors: [],
           }).catch(() => {
             setAccessError(
               "공동 일정판을 준비하지 못했어요. 다시 로그인한 뒤 시도해주세요.",
@@ -1138,6 +1164,10 @@ export default function Home() {
             members: [],
             currentTerm: term,
             copyFormats: { ...defaultCopyFormats, ...(data.copyFormats || {}) },
+            educationSchedules: Array.isArray(data.educationSchedules)
+              ? (data.educationSchedules as EducationSchedule[])
+              : [],
+            mentors: Array.isArray(data.mentors) ? (data.mentors as Mentor[]) : [],
           };
           cloudState.current = JSON.stringify(emptyState);
           setPractices(emptyState.practices);
@@ -1162,12 +1192,18 @@ export default function Home() {
           members,
           currentTerm: term,
           copyFormats: { ...defaultCopyFormats, ...(data.copyFormats || {}) },
+          educationSchedules: Array.isArray(data.educationSchedules)
+            ? (data.educationSchedules as EducationSchedule[])
+            : [],
+          mentors: Array.isArray(data.mentors) ? (data.mentors as Mentor[]) : [],
         };
         cloudState.current = JSON.stringify(next);
         setPractices(next.practices);
         setClubMembers(next.members);
         setCurrentTerm(next.currentTerm);
         setCopyFormats(next.copyFormats);
+        setEducationSchedules(next.educationSchedules);
+        setMentors(next.mentors);
         setSession(member);
         setReady(true);
       },
@@ -1186,6 +1222,8 @@ export default function Home() {
       members: clubMembers,
       currentTerm,
       copyFormats,
+      educationSchedules,
+      mentors,
     });
     if (cloudState.current === next) return;
     cloudState.current = next;
@@ -1200,9 +1238,9 @@ export default function Home() {
         "공동 데이터 저장에 실패했어요. 잠시 후 다시 시도해주세요.",
       );
     });
-  }, [practices, clubMembers, currentTerm, copyFormats, ready, authUser]);
+  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, ready, authUser]);
   const finishBootstrap = async (member: Member) => {
-    const next = { practices, members: [member], currentTerm, copyFormats };
+    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors };
     try {
       await setDoc(doc(db, "clubs", "simgunghoe"), next);
       cloudState.current = JSON.stringify(next);
@@ -1880,7 +1918,16 @@ export default function Home() {
           </button>
         </section>
       )}
-      {view === "education" && <Education />}
+      {view === "education" && (
+        <Education
+          schedules={educationSchedules}
+          mentors={mentors}
+          session={session}
+          onSchedules={setEducationSchedules}
+          onMentors={setMentors}
+          notify={notify}
+        />
+      )}
       {view === "calendar" && (
         <Calendar
           practices={practices}
@@ -2356,50 +2403,279 @@ function Participants({
   );
 }
 
-function Education() {
+function Education({
+  schedules,
+  mentors,
+  session,
+  onSchedules,
+  onMentors,
+  notify,
+}: {
+  schedules: EducationSchedule[];
+  mentors: Mentor[];
+  session: Member;
+  onSchedules: (value: EducationSchedule[]) => void;
+  onMentors: (value: Mentor[]) => void;
+  notify: (message: string) => void;
+}) {
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [openSchedule, setOpenSchedule] = useState<EducationSchedule | null>(null);
+  const [showMentorForm, setShowMentorForm] = useState(false);
+  const canManageSchedule =
+    session.role === "관리자" || session.position === "교육팀장";
+  const canUseMentoring = session.grade !== "예비신사";
+  const mine = mentors.find((mentor) => mentor.memberId === session.id);
+  const myMentor = mentors.find((mentor) => mentor.mentees.includes(session.id));
   return (
     <section className="content education-page">
       <div className="section-head">
         <div>
-          <h2>교육 일정</h2>
-          <p>국궁을 처음 배우는 예비신사를 위한 안내예요.</p>
+          <h2>교육</h2>
         </div>
       </div>
-      <article className="education-hero">
-        <p>NEW ARCHER PROGRAM</p>
-        <h3>
-          처음 잡는 활부터
-          <br />
-          나만의 한 발까지.
-        </h3>
-        <span>예비신사 교육은 정규 습사 일정과 함께 안내됩니다.</span>
-      </article>
-      <div className="education-list">
-        <p className="list-label">교육 안내</p>
-        <article>
-          <span>01</span>
+      <section className="education-section">
+        <div className="education-title-row">
           <div>
-            <b>안전 교육</b>
-            <p>국궁장 예절과 장비를 안전하게 다루는 방법을 배웁니다.</p>
+            <p className="list-label">교육 시간표</p>
+            <span>교육팀 가능 시간과 예비신사 신청 현황</span>
           </div>
-        </article>
-        <article>
-          <span>02</span>
+          {canManageSchedule && (
+            <button className="primary compact" onClick={() => setShowScheduleForm(true)}>
+              시간표 추가
+            </button>
+          )}
+        </div>
+        <div className="education-cards">
+          {schedules.length ? (
+            schedules
+              .slice()
+              .sort((a, b) => a.startDate.localeCompare(b.startDate))
+              .map((schedule) => (
+                <button
+                  className="education-schedule-card"
+                  key={schedule.id}
+                  onClick={() => setOpenSchedule(schedule)}
+                >
+                  <b>{shortScheduleLabel(schedule)}</b>
+                  <span>시간표 열기 ›</span>
+                </button>
+              ))
+          ) : (
+            <p className="education-empty">등록된 교육 시간표가 없어요.</p>
+          )}
+        </div>
+      </section>
+      <section className="education-section mentorship-section">
+        <div className="education-title-row">
           <div>
-            <b>기초 자세</b>
-            <p>활 잡기, 자세, 시위 당기기 등 기본 동작을 함께 연습합니다.</p>
+            <p className="list-label">도제 프로그램</p>
+            <span>원하는 선배에게 선착순으로 멘티를 신청하세요.</span>
           </div>
-        </article>
-        <article>
-          <span>03</span>
-          <div>
-            <b>첫 습사</b>
-            <p>교육팀과 함께 습사에 참여하며 나만의 활쏘기를 시작합니다.</p>
-          </div>
-        </article>
-      </div>
+          {canUseMentoring && !mine && (
+            <button className="outline compact" onClick={() => setShowMentorForm(true)}>
+              멘토 신청
+            </button>
+          )}
+        </div>
+        {!canUseMentoring && (
+          <p className="education-empty">도제 프로그램은 신사부터 참여할 수 있어요.</p>
+        )}
+        {canUseMentoring && myMentor && (
+          <p className="my-mentor">내 멘토 · {myMentor.name} ({myMentor.side})</p>
+        )}
+        <div className="mentor-grid">
+          {mentors.map((mentor) => {
+            const isMine = mentor.memberId === session.id;
+            const isMentee = mentor.mentees.includes(session.id);
+            const full = mentor.mentees.length >= mentor.capacity;
+            return (
+              <article className="mentor-card" key={mentor.memberId}>
+                <div>
+                  <b>{mentor.name}</b>
+                  <span>{mentor.side}</span>
+                </div>
+                <p>자주 가는 활터 · {mentor.range}</p>
+                <small>멘티 {mentor.mentees.length} / {mentor.capacity}명</small>
+                {isMine ? (
+                  <button
+                    className="text-button"
+                    onClick={() => setShowMentorForm(true)}
+                  >
+                    내 멘토 정보 수정
+                  </button>
+                ) : isMentee ? (
+                  <button
+                    className="outline"
+                    onClick={() => {
+                      onMentors(mentors.map((item) => item.memberId === mentor.memberId ? { ...item, mentees: item.mentees.filter((id) => id !== session.id) } : item));
+                      notify("멘티 신청을 취소했어요");
+                    }}
+                  >멘티 신청 취소</button>
+                ) : (
+                  <button
+                    className="primary"
+                    disabled={Boolean(myMentor) || full}
+                    onClick={() => {
+                      if (myMentor) return;
+                      onMentors(mentors.map((item) => item.memberId === mentor.memberId ? { ...item, mentees: [...item.mentees, session.id] } : item));
+                      notify(`${mentor.name} 멘토에게 신청했어요`);
+                    }}
+                  >{full ? "모집 마감" : "멘티 신청"}</button>
+                )}
+              </article>
+            );
+          })}
+          {canUseMentoring && !mentors.length && <p className="education-empty">아직 신청한 멘토가 없어요.</p>}
+        </div>
+      </section>
+      {showScheduleForm && (
+        <ScheduleForm
+          session={session}
+          onClose={() => setShowScheduleForm(false)}
+          onSave={(schedule) => {
+            onSchedules([...schedules, schedule]);
+            setShowScheduleForm(false);
+            notify("교육 시간표를 등록했어요");
+          }}
+        />
+      )}
+      {openSchedule && (
+        <ScheduleSheet
+          schedule={openSchedule}
+          session={session}
+          canManage={canManageSchedule}
+          onClose={() => setOpenSchedule(null)}
+          onSave={(next) => {
+            onSchedules(schedules.map((item) => item.id === next.id ? next : item));
+            setOpenSchedule(next);
+          }}
+          onDelete={() => {
+            onSchedules(schedules.filter((item) => item.id !== openSchedule.id));
+            setOpenSchedule(null);
+            notify("교육 시간표를 폐기했어요");
+          }}
+        />
+      )}
+      {showMentorForm && (
+        <MentorForm
+          initial={mine}
+          session={session}
+          onClose={() => setShowMentorForm(false)}
+          onSave={(mentor) => {
+            onMentors(mine ? mentors.map((item) => item.memberId === mentor.memberId ? mentor : item) : [...mentors, mentor]);
+            setShowMentorForm(false);
+            notify(mine ? "멘토 정보를 수정했어요" : "멘토 신청을 완료했어요");
+          }}
+        />
+      )}
     </section>
   );
+}
+
+const educationTimes = Array.from({ length: 16 }, (_, index) => {
+  const minutes = 10 * 60 + index * 30;
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+});
+const dateKey = (date: Date) => date.toISOString().slice(0, 10);
+const mondayOf = (source: Date) => {
+  const date = new Date(source.getFullYear(), source.getMonth(), source.getDate());
+  const offset = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - offset);
+  return date;
+};
+const weekDates = (startDate: string) => {
+  const start = new Date(`${startDate}T12:00:00`);
+  return Array.from({ length: 5 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
+};
+const shortScheduleLabel = (schedule: EducationSchedule) => {
+  const start = new Date(`${schedule.startDate}T12:00:00`);
+  const end = new Date(`${schedule.endDate}T12:00:00`);
+  return `${start.getMonth() + 1}/${start.getDate()}~${end.getMonth() + 1}/${end.getDate()} 시간표`;
+};
+const slotKey = (date: string, time: string) => `${date}_${time}`;
+
+function ScheduleForm({
+  session,
+  onClose,
+  onSave,
+}: {
+  session: Member;
+  onClose: () => void;
+  onSave: (schedule: EducationSchedule) => void;
+}) {
+  const [startDate, setStartDate] = useState(dateKey(mondayOf(new Date())));
+  const [place, setPlace] = useState("");
+  return (
+    <div className="modal-back">
+      <section className="modal education-modal">
+        <div className="modal-head"><div><p className="eyebrow">교육 시간표</p><h2>시간표 추가</h2></div><button onClick={onClose}>×</button></div>
+        <label>시작일 (월요일)<input type="date" value={startDate} onChange={(e) => setStartDate(dateKey(mondayOf(new Date(`${e.target.value}T12:00:00`))))} /></label>
+        <label>장소<input value={place} onChange={(e) => setPlace(e.target.value)} placeholder="예: 동아리방" required /></label>
+        <p className="form-hint">월~금, 10:00~18:00의 30분 단위 시간표가 생성됩니다.</p>
+        <button className="primary" disabled={!place.trim()} onClick={() => {
+          const start = new Date(`${startDate}T12:00:00`); const end = new Date(start); end.setDate(start.getDate() + 4);
+          onSave({ id: String(Date.now()), startDate, endDate: dateKey(end), place: place.trim(), slots: {}, createdBy: session.id });
+        }}>시간표 만들기</button>
+      </section>
+    </div>
+  );
+}
+
+function ScheduleSheet({
+  schedule,
+  session,
+  canManage,
+  onClose,
+  onSave,
+  onDelete,
+}: {
+  schedule: EducationSchedule;
+  session: Member;
+  canManage: boolean;
+  onClose: () => void;
+  onSave: (schedule: EducationSchedule) => void;
+  onDelete: () => void;
+}) {
+  const dates = weekDates(schedule.startDate);
+  const isPreliminary = session.grade === "예비신사";
+  const toggle = (date: string, time: string) => {
+    const key = slotKey(date, time);
+    const current = schedule.slots[key] || { educators: [], learners: [] };
+    const isEducator = canManage && !isPreliminary;
+    const field = isEducator ? "educators" : "learners";
+    if (!isEducator && !isPreliminary) return;
+    if (!isEducator && current.educators.length === 0) return;
+    const values = current[field];
+    const nextValues = values.includes(session.name) ? values.filter((name) => name !== session.name) : [...values, session.name];
+    onSave({ ...schedule, slots: { ...schedule.slots, [key]: { ...current, [field]: nextValues } } });
+  };
+  return (
+    <div className="modal-back">
+      <section className="modal schedule-sheet">
+        <div className="modal-head"><div><p className="eyebrow">{shortScheduleLabel(schedule)}</p><h2>{schedule.place}</h2></div><button onClick={onClose}>×</button></div>
+        <div className="schedule-legend"><span className="educator">교육팀</span><span className="learner">예비신사</span></div>
+        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="educator-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!canManage || isPreliminary}>{slot?.educators.join("\n") || (canManage && !isPreliminary ? "+" : "")}</button></td>; })}</tr><tr><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="learner-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
+        {canManage && <button className="danger-button" onClick={() => { if (window.confirm("이 시간표를 폐기할까요?")) onDelete(); }}>시간표 폐기</button>}
+      </section>
+    </div>
+  );
+}
+
+function MentorForm({ initial, session, onClose, onSave }: { initial?: Mentor; session: Member; onClose: () => void; onSave: (mentor: Mentor) => void }) {
+  const [side, setSide] = useState<Mentor["side"]>(initial?.side || "좌궁");
+  const [range, setRange] = useState(initial?.range || "");
+  const [capacity, setCapacity] = useState(initial?.capacity || 1);
+  return <div className="modal-back"><section className="modal education-modal"><div className="modal-head"><div><p className="eyebrow">도제 프로그램</p><h2>{initial ? "멘토 정보 수정" : "멘토 신청"}</h2></div><button onClick={onClose}>×</button></div><label>좌궁 / 우궁<select value={side} onChange={(e) => setSide(e.target.value as Mentor["side"])}><option>좌궁</option><option>우궁</option></select></label><label>자주 가는 활터<input value={range} onChange={(e) => setRange(e.target.value)} placeholder="예: 난지국궁장" /></label><label>최대 멘티 수<input type="number" min="1" max="20" value={capacity} onChange={(e) => setCapacity(Math.max(1, Number(e.target.value)))} /></label><button className="primary" disabled={!range.trim()} onClick={() => onSave({ memberId: session.id, name: session.name, side, range: range.trim(), capacity, mentees: initial?.mentees || [] })}>{initial ? "저장" : "멘토로 신청하기"}</button></section></div>;
+}
+
+function addThirty(time: string) {
+  const [hour, minute] = time.split(":").map(Number);
+  const total = hour * 60 + minute + 30;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
 function Calendar({
