@@ -3,6 +3,25 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /clubs/{clubId} {
       allow read, write: if request.auth != null;
+
+      match /questions/{questionId} {
+        allow create: if request.resource.data.title is string
+          && request.resource.data.title.size() <= 120
+          && request.resource.data.body is string
+          && request.resource.data.body.size() <= 2000
+          && request.resource.data.status == "waiting";
+        allow read, update, delete: if request.auth != null;
+      }
+    }
+
+    match /public/{publicId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+
+      match /qa/{questionId} {
+        allow read: if true;
+        allow write: if request.auth != null;
+      }
     }
   }
 }
