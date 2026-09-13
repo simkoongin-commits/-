@@ -106,6 +106,11 @@ type CalendarEvent = {
   note?: string;
   createdBy: string;
 };
+type RoomStatus = { isOpen: boolean; openedBy?: string; openedByName?: string };
+type HallRank = "초1중" | "초2중" | "초3중" | "초4중" | "초5중" | "단";
+type HallOfFame = Record<HallRank, string[]>;
+const hallRanks: HallRank[] = ["초1중", "초2중", "초3중", "초4중", "초5중", "단"];
+const emptyHall = (): HallOfFame => ({ "초1중": [], "초2중": [], "초3중": [], "초4중": [], "초5중": [], "단": [] });
 const educationCacheKey = (kind: "schedules" | "mentors") =>
   `simgunghoe:education:${kind}`;
 const readEducationCache = <T,>(kind: "schedules" | "mentors", fallback: T) => {
@@ -500,6 +505,7 @@ function PublicPortal({
 }) {
   const [tab, setTab] = useState<"home" | "qa" | "posts">(initialTab);
   const [questionSent, setQuestionSent] = useState(false);
+  const [questionError, setQuestionError] = useState("");
   const [question, setQuestion] = useState({
     title: "",
     body: "",
@@ -638,9 +644,15 @@ function PublicPortal({
             className="question-form"
             onSubmit={async (event) => {
               event.preventDefault();
-              if (onQuestion) await onQuestion(question);
-              setQuestionSent(true);
-              setQuestion({ title: "", body: "", nickname: "" });
+              try {
+                await onQuestion?.(question);
+                setQuestionSent(true);
+                setQuestionError("");
+                setQuestion({ title: "", body: "", nickname: "" });
+              } catch {
+                setQuestionSent(false);
+                setQuestionError("질문을 보내지 못했어요. 잠시 후 다시 시도해주세요.");
+              }
             }}
           >
             <label>
@@ -681,6 +693,7 @@ function PublicPortal({
                 질문을 접수했어요. 운영진이 확인 후 답변합니다.
               </p>
             )}
+            {questionError && <p className="login-error">{questionError}</p>}
           </form>
           {isResponder && waitingQuestions.length > 0 && (
             <div className="qa-list pending">
@@ -917,6 +930,7 @@ function PublicPortal({
                 postFiles,
               );
               setPostEditor(false);
+              setTab("posts");
               setPostDraft({ title: "", body: "" });
               setPostFiles([]);
             }}
@@ -1070,7 +1084,7 @@ function BootstrapAdmin({
 export default function Home() {
   const [practices, setPractices] = useState<Practice[]>(seedPractices);
   const [view, setView] = useState<
-    "education" | "cards" | "calendar" | "members"
+    "education" | "cards" | "calendar" | "members" | "hall"
   >("cards");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
   const [filter, setFilter] = useState<
@@ -1110,6 +1124,9 @@ export default function Home() {
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [showCalendarForm, setShowCalendarForm] = useState(false);
+  const [roomStatus, setRoomStatus] = useState<RoomStatus>({ isOpen: false });
+  const [hallOfFame, setHallOfFame] = useState<HallOfFame>(emptyHall);
+  const [menuOpen, setMenuOpen] = useState(false);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
   useEffect(() => {
@@ -1169,6 +1186,8 @@ export default function Home() {
           educationSchedules: [],
           mentors: [],
           calendarEvents: [],
+          roomStatus: { isOpen: false },
+          hallOfFame: emptyHall(),
           }).catch(() => {
             setAccessError(
               "공동 일정판을 준비하지 못했어요. 다시 로그인한 뒤 시도해주세요.",
@@ -1202,6 +1221,8 @@ export default function Home() {
             calendarEvents: Array.isArray(data.calendarEvents)
               ? (data.calendarEvents as CalendarEvent[])
               : [],
+            roomStatus: (data.roomStatus as RoomStatus) || { isOpen: false },
+            hallOfFame: (data.hallOfFame as HallOfFame) || emptyHall(),
           };
           cloudState.current = JSON.stringify(emptyState);
           setPractices(emptyState.practices);
@@ -1235,6 +1256,8 @@ export default function Home() {
           calendarEvents: Array.isArray(data.calendarEvents)
             ? (data.calendarEvents as CalendarEvent[])
             : [],
+          roomStatus: (data.roomStatus as RoomStatus) || { isOpen: false },
+          hallOfFame: (data.hallOfFame as HallOfFame) || emptyHall(),
         };
         cloudState.current = JSON.stringify(next);
         setPractices(next.practices);
@@ -1244,6 +1267,8 @@ export default function Home() {
         setEducationSchedules(next.educationSchedules);
         setMentors(next.mentors);
         setCalendarEvents(next.calendarEvents);
+        setRoomStatus(next.roomStatus);
+        setHallOfFame(next.hallOfFame);
         setSession(member);
         setReady(true);
       },
@@ -1265,6 +1290,8 @@ export default function Home() {
       educationSchedules,
       mentors,
       calendarEvents,
+      roomStatus,
+      hallOfFame,
     });
     if (cloudState.current === next) return;
     cloudState.current = next;
@@ -1276,15 +1303,17 @@ export default function Home() {
       educationSchedules,
       mentors,
       calendarEvents,
+      roomStatus,
+      hallOfFame,
     }).catch(() => {
       cloudState.current = "";
       setAccessError(
         "공동 데이터 저장에 실패했어요. 잠시 후 다시 시도해주세요.",
       );
     });
-  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, ready, authUser]);
+  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, ready, authUser]);
   const finishBootstrap = async (member: Member) => {
-    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents };
+    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame };
     try {
       await setDoc(doc(db, "clubs", "simgunghoe"), next);
       cloudState.current = JSON.stringify(next);
@@ -1377,7 +1406,7 @@ export default function Home() {
   const submitPublicQuestion = async (
     item: Omit<PublicQuestion, "id" | "status" | "createdAt">,
   ) => {
-    await addDoc(collection(db, "clubs", "simgunghoe", "questions"), {
+    await addDoc(collection(db, "public", "simgunghoe", "qa"), {
       ...item,
       status: "waiting",
       createdAt: new Date().toLocaleDateString("ko-KR"),
@@ -1678,9 +1707,19 @@ export default function Home() {
         <div>
           <p className="eyebrow">한양대학교 국궁동아리</p>
           <h1>
-            습사 <em>일정표</em>
+            심궁<em>회</em>
           </h1>
-          <p className="hero-copy">다가오는 습사를 확인하고 참여하세요.</p>
+        </div>
+        <div className="room-status">
+          <button
+            className={roomStatus.isOpen ? "room-toggle on" : "room-toggle"}
+            disabled={session.grade === "예비신사"}
+            onClick={() => {
+              if (roomStatus.isOpen && roomStatus.openedBy !== session.id) return;
+              setRoomStatus(roomStatus.isOpen ? { isOpen: false } : { isOpen: true, openedBy: session.id, openedByName: session.name });
+            }}
+          >동방 {roomStatus.isOpen ? "ON" : "OFF"}</button>
+          {roomStatus.isOpen && <small>{roomStatus.openedByName}</small>}
         </div>
         <button
           className="next-box"
@@ -1720,7 +1759,8 @@ export default function Home() {
           </small>
         </button>
       </section>}
-      <nav className="tabs" aria-label="하단 메뉴">
+      <button className="menu-toggle" aria-label="메뉴 펼치기" onClick={() => setMenuOpen((open) => !open)}>☰</button>
+      <nav className={menuOpen ? "tabs expanded" : "tabs"} aria-label="회원 메뉴">
         <button
           className={view === "education" ? "active" : ""}
           onClick={() => setView("education")}
@@ -1744,6 +1784,9 @@ export default function Home() {
           onClick={() => setView("members")}
         >
           <span>♙</span>회원
+        </button>
+        <button className={view === "hall" ? "active" : ""} onClick={() => setView("hall")}>
+          <span>♛</span>명예의 전당
         </button>
       </nav>
       {view === "cards" && (
@@ -1995,6 +2038,7 @@ export default function Home() {
           schedules={educationSchedules}
           mentors={mentors}
           session={session}
+          members={clubMembers}
           onSchedules={saveEducationSchedules}
           onMentors={saveMentors}
           notify={notify}
@@ -2119,6 +2163,14 @@ export default function Home() {
                 notify("회원 삭제에 실패했어요. 다시 시도해주세요."),
               );
           }}
+        />
+      )}
+      {view === "hall" && (
+        <HallOfFameView
+          hall={hallOfFame}
+          members={clubMembers}
+          editable={session.role === "관리자"}
+          onChange={setHallOfFame}
         />
       )}
       {participants && (
@@ -2489,6 +2541,7 @@ function Education({
   schedules,
   mentors,
   session,
+  members,
   onSchedules,
   onMentors,
   notify,
@@ -2496,6 +2549,7 @@ function Education({
   schedules: EducationSchedule[];
   mentors: Mentor[];
   session: Member;
+  members: Member[];
   onSchedules: (value: EducationSchedule[]) => void;
   onMentors: (value: Mentor[]) => void;
   notify: (message: string) => void;
@@ -2635,6 +2689,7 @@ function Education({
         <ScheduleSheet
           schedule={openSchedule}
           session={session}
+          members={members}
           canManage={canManageSchedule}
           onClose={() => setOpenSchedule(null)}
           onSave={(next) => {
@@ -2721,6 +2776,7 @@ function ScheduleForm({
 function ScheduleSheet({
   schedule,
   session,
+  members,
   canManage,
   onClose,
   onSave,
@@ -2728,6 +2784,7 @@ function ScheduleSheet({
 }: {
   schedule: EducationSchedule;
   session: Member;
+  members: Member[];
   canManage: boolean;
   onClose: () => void;
   onSave: (schedule: EducationSchedule) => void;
@@ -2739,7 +2796,7 @@ function ScheduleSheet({
   const toggle = (date: string, time: string) => {
     const key = slotKey(date, time);
     const current = schedule.slots[key] || { educators: [], learners: [] };
-    const isEducator = canManage && !isPreliminary;
+    const isEducator = !isPreliminary;
     const field = isEducator ? "educators" : "learners";
     if (!isEducator && !isPreliminary) return;
     if (!isEducator && current.educators.length === 0) return;
@@ -2748,12 +2805,15 @@ function ScheduleSheet({
     const nextValues = values.includes(session.name) ? values.filter((name) => name !== session.name) : [...values, session.name];
     onSave({ ...schedule, slots: { ...schedule.slots, [key]: { ...current, [field]: nextValues } } });
   };
+  const preliminaryMembers = members.filter((member) => member.grade === "예비신사");
+  const appliedNames = new Set(Object.values(schedule.slots).flatMap((slot) => slot.learners));
   return (
     <div className="modal-back schedule-modal-back">
       <section className="modal schedule-sheet">
         <div className="modal-head"><div><p className="eyebrow">{shortScheduleLabel(schedule)}</p><h2>{schedule.place}</h2></div><button onClick={onClose}>×</button></div>
         <div className="schedule-controls"><div className="schedule-legend"><span className="educator">교육팀</span><span className="learner">예비신사</span></div>{canManage && <label>예비신사 칸 정원<input type="number" min="1" max="20" value={learnerCapacity} onChange={(e) => onSave({ ...schedule, learnerCapacity: Math.max(1, Number(e.target.value) || 1) })} /></label>}<small>각 시간 칸에 적용됩니다. 표를 좌우로 밀어 모든 날짜를 확인하세요.</small></div>
-        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr className="educator-row"><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="educator-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!canManage || isPreliminary}>{slot?.educators.join("\n") || (canManage && !isPreliminary ? "+" : "")}</button></td>; })}</tr><tr className="learner-row"><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="learner-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
+        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr className="educator-row"><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; const matched = Boolean(slot?.educators.length && slot.learners.length); return <td key={key} className={matched ? "educator-cell matched" : "educator-cell"}><button onClick={() => toggle(dateKey(date), time)} disabled={isPreliminary}>{slot?.educators.join("\n") || (!isPreliminary ? "+" : "")}</button></td>; })}</tr><tr className="learner-row"><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; const matched = Boolean(slot?.educators.length && slot.learners.length); return <td key={key} className={matched ? "learner-cell matched" : "learner-cell"}><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
+        <section className="preliminary-status"><h3>예비신사 신청 현황</h3><div><article><b>신청</b>{preliminaryMembers.filter((member) => appliedNames.has(member.name)).map((member) => <span key={member.id}>{member.name}</span>) || null}</article><article><b>미신청</b>{preliminaryMembers.filter((member) => !appliedNames.has(member.name)).map((member) => <span key={member.id}>{member.name}</span>) || null}</article></div></section>
         {canManage && <button className="danger-button" onClick={() => { if (window.confirm("이 시간표를 폐기할까요?")) onDelete(); }}>시간표 폐기</button>}
       </section>
     </div>
@@ -2801,6 +2861,10 @@ function CalendarEventForm({
       </section>
     </div>
   );
+}
+
+function HallOfFameView({ hall, members, editable, onChange }: { hall: HallOfFame; members: Member[]; editable: boolean; onChange: (hall: HallOfFame) => void }) {
+  return <section className="content hall-page"><div className="section-head"><div><h2>명예의 전당</h2><p>초1중에서 단으로 이어지는 심궁회의 기록</p></div></div><div className="hall-tower">{hallRanks.map((rank, index) => <article key={rank} className={`hall-rank rank-${index}`}><div><b>{rank}</b>{editable && <select value="" onChange={(e) => { if (!e.target.value) return; onChange({ ...hall, [rank]: [...hall[rank], e.target.value] }); }}><option value="">회원 추가</option>{members.filter((member) => !Object.values(hall).flat().includes(member.id)).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</div><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : "아직 기록된 회원이 없어요"}</p></article>)}</div></section>;
 }
 
 function Calendar({
