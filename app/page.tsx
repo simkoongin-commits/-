@@ -1759,33 +1759,35 @@ export default function Home() {
           </small>
         </button>
       </section>}
-      <button className="menu-toggle" aria-label="메뉴 펼치기" onClick={() => setMenuOpen((open) => !open)}>☰</button>
+      {menuOpen && <button className="menu-scrim" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />}
+      <button className={menuOpen ? "menu-toggle open" : "menu-toggle"} aria-label="메뉴 펼치기" onClick={() => setMenuOpen((open) => !open)}>☰</button>
       <nav className={menuOpen ? "tabs expanded" : "tabs"} aria-label="회원 메뉴">
+        {menuOpen && <div className="drawer-head"><b>심궁<em>회</em></b><span>원하는 메뉴를 선택해주세요</span></div>}
         <button
           className={view === "education" ? "active" : ""}
-          onClick={() => setView("education")}
+          onClick={() => { setView("education"); setMenuOpen(false); }}
         >
           <span>✦</span>교육
         </button>
         <button
           className={view === "cards" ? "active" : ""}
-          onClick={() => setView("cards")}
+          onClick={() => { setView("cards"); setMenuOpen(false); }}
         >
           <span>⌂</span>습사
         </button>
         <button
           className={view === "calendar" ? "active" : ""}
-          onClick={() => setView("calendar")}
+          onClick={() => { setView("calendar"); setMenuOpen(false); }}
         >
           <span>▦</span>달력
         </button>
         <button
           className={view === "members" ? "active" : ""}
-          onClick={() => setView("members")}
+          onClick={() => { setView("members"); setMenuOpen(false); }}
         >
           <span>♙</span>회원
         </button>
-        <button className={view === "hall" ? "active" : ""} onClick={() => setView("hall")}>
+        <button className={view === "hall" ? "active" : ""} onClick={() => { setView("hall"); setMenuOpen(false); }}>
           <span>♛</span>명예의 전당
         </button>
       </nav>
@@ -2864,7 +2866,8 @@ function CalendarEventForm({
 }
 
 function HallOfFameView({ hall, members, editable, onChange }: { hall: HallOfFame; members: Member[]; editable: boolean; onChange: (hall: HallOfFame) => void }) {
-  return <section className="content hall-page"><div className="section-head"><div><h2>명예의 전당</h2><p>초1중에서 단으로 이어지는 심궁회의 기록</p></div></div><div className="hall-tower">{hallRanks.map((rank, index) => <article key={rank} className={`hall-rank rank-${index}`}><div><b>{rank}</b>{editable && <select value="" onChange={(e) => { if (!e.target.value) return; onChange({ ...hall, [rank]: [...hall[rank], e.target.value] }); }}><option value="">회원 추가</option>{members.filter((member) => !Object.values(hall).flat().includes(member.id)).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</div><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : "아직 기록된 회원이 없어요"}</p></article>)}</div></section>;
+  const icons = ["🎉", "👑", "🥉", "🥈", "🥇", "🏆"];
+  return <section className="content hall-page"><div className="hall-paper"><header><p>SIMKOONG ARCHERY CLUB</p><h2>명예의 전당</h2><span>9월 기록</span></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button aria-label="삭제" onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : <small>아직 기록된 회원이 없어요</small>}</p></div>{editable && <select value="" onChange={(e) => { if (!e.target.value) return; onChange({ ...hall, [rank]: [...hall[rank], e.target.value] }); }}><option value="">추가</option>{members.filter((member) => !Object.values(hall).flat().includes(member.id)).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div></section>;
 }
 
 function Calendar({
