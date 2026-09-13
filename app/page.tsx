@@ -1578,9 +1578,8 @@ export default function Home() {
       if (note.type === "damaged" && note.itemIds.some((id) => !note.details?.[id]?.trim())) throw new Error("손상된 장비마다 손상 내용을 입력해주세요.");
     }
   };
-  const createEquipmentRental = async (itemIds: string[], loanDate: string, notes: RentalNote[]) => {
+  const createEquipmentRental = async (itemIds: string[], loanDate: string) => {
     if (!loanDate) throw new Error("대여일을 선택해주세요.");
-    validateRentalNotes(notes, itemIds);
     const clubRef = doc(db, "clubs", "simgunghoe");
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(clubRef);
@@ -1593,14 +1592,11 @@ export default function Home() {
       const unavailable = selected.filter((item): item is Equipment => Boolean(item && !canRentEquipment(item)));
       if (unavailable.length) throw new Error(`선택한 장비 중 다른 회원이 먼저 대여했거나 대여할 수 없는 장비가 있어 전체 대여를 취소했어요: ${unavailable.map(equipmentName).join(", ")}`);
       const rentalId = makeEquipmentId();
-      const lostIds = new Set(notes.filter((note) => note.type === "lost").flatMap((note) => note.itemIds));
-      const damagedIds = new Set(notes.filter((note) => note.type === "damaged").flatMap((note) => note.itemIds));
       const nextEquipment = current.map((item) => {
         if (!itemIds.includes(item.id)) return item;
-        const status = lostIds.has(item.id) ? "lost" : damagedIds.has(item.id) ? "damaged" : "rented";
-        return { ...item, status, holderId: session.id, holderName: session.name, activeRentalId: rentalId } as Equipment;
+        return { ...item, status: "rented", holderId: session.id, holderName: session.name, activeRentalId: rentalId } as Equipment;
       });
-      const rental: EquipmentRental = { id: rentalId, memberId: session.id, memberName: session.name, loanDate, itemIds, notes, status: "active", createdAt: new Date().toISOString() };
+      const rental: EquipmentRental = { id: rentalId, memberId: session.id, memberName: session.name, loanDate, itemIds, notes: [], status: "active", createdAt: new Date().toISOString() };
       transaction.set(clubRef, { equipment: nextEquipment, equipmentRentals: [...currentRentals, rental] }, { merge: true });
     });
   };
@@ -1631,7 +1627,6 @@ export default function Home() {
     });
   };
   const returnEquipmentRental = async (rentalId: string) => {
-    if (session.role !== "관리자") throw new Error("관리자만 반납을 완료할 수 있어요.");
     const clubRef = doc(db, "clubs", "simgunghoe");
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(clubRef);
@@ -1641,6 +1636,7 @@ export default function Home() {
       const currentRentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
       const rental = currentRentals.find((item) => item.id === rentalId);
       if (!rental || rental.status === "returned") throw new Error("이미 반납 완료된 기록이에요.");
+      if (rental.memberId !== session.id && session.role !== "관리자") throw new Error("본인의 대여 기록만 반납할 수 있어요.");
       const completedAt = new Date().toISOString();
       const returnDate = completedAt.slice(0, 10);
       transaction.set(clubRef, {
@@ -1654,11 +1650,25 @@ export default function Home() {
     const clubRef = doc(db, "clubs", "simgunghoe");
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(clubRef);
-      const current = snapshot.exists() && Array.isArray(snapshot.data().equipment) ? snapshot.data().equipment as Equipment[] : [];
+      const data = snapshot.exists() ? snapshot.data() : {};
+      const current = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
+      const currentRentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
       const target = current.find((item) => item.id === itemId);
       const expected = action === "recover" ? "lost" : "damaged";
       if (!target || target.status !== expected) throw new Error("장비 상태가 이미 변경됐어요.");
-      transaction.set(clubRef, { equipment: current.map((item) => item.id === itemId ? releaseEquipment(item) : item) }, { merge: true });
+      const noteType = action === "recover" ? "lost" : "damaged";
+      const nextRentals = currentRentals.map((rental) => ({
+        ...rental,
+        notes: rental.id !== target.activeRentalId ? (rental.notes || []) : (rental.notes || []).flatMap((note) => {
+          if (note.type !== noteType || !note.itemIds.includes(itemId)) return [note];
+          const itemIds = note.itemIds.filter((id) => id !== itemId);
+          if (itemIds.length === 0) return [];
+          const details = note.details ? Object.fromEntries(Object.entries(note.details).filter(([id]) => id !== itemId)) : undefined;
+          const { details: _details, ...withoutDetails } = note;
+          return [{ ...withoutDetails, itemIds, ...(details && Object.keys(details).length ? { details } : {}) }];
+        }),
+      }));
+      transaction.set(clubRef, { equipment: current.map((item) => item.id === itemId ? releaseEquipment(item) : item), equipmentRentals: nextRentals }, { merge: true });
     });
   };
   const deleteEquipmentRental = async (rentalId: string) => {
@@ -3028,7 +3038,7 @@ function ScheduleSheet({
       <section className="modal schedule-sheet">
         <div className="modal-head"><div><p className="eyebrow">{shortScheduleLabel(schedule)}</p><h2>{schedule.place}</h2></div><button onClick={onClose}>×</button></div>
         <div className="schedule-controls"><div className="schedule-legend"><span className="educator">교육팀</span><span className="learner">예비신사</span></div>{canManage && <label>예비신사 칸 정원<input type="number" min="1" max="20" value={learnerCapacity} onChange={(e) => onSave({ ...schedule, learnerCapacity: Math.max(1, Number(e.target.value) || 1) })} /></label>}<small>각 시간 칸에 적용됩니다. 표를 좌우로 밀어 모든 날짜를 확인하세요.</small></div>
-        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr className="educator-row"><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; const matched = Boolean(slot?.educators.length && slot.learners.length); return <td key={key} className={matched ? "educator-cell matched" : "educator-cell"}><button onClick={() => toggle(dateKey(date), time)} disabled={isPreliminary}>{slot?.educators.join("\n") || (!isPreliminary ? "+" : "")}</button></td>; })}</tr><tr className="learner-row"><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; const matched = Boolean(slot?.educators.length && slot.learners.length); return <td key={key} className={matched ? "learner-cell matched" : "learner-cell"}><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
+        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr className="educator-row"><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; const matched = Boolean(slot?.educators.length && slot.learners.length); return <td key={key} className={matched ? "educator-cell matched-pair" : "educator-cell"}><button onClick={() => toggle(dateKey(date), time)} disabled={isPreliminary}>{slot?.educators.join("\n") || (!isPreliminary ? "+" : "")}</button></td>; })}</tr><tr className="learner-row"><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="learner-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
         <section className="preliminary-status"><h3>예비신사 신청 현황</h3><div><article><b>신청</b>{preliminaryMembers.filter((member) => appliedNames.has(member.name)).map((member) => <span key={member.id}>{member.name}</span>) || null}</article><article><b>미신청</b>{preliminaryMembers.filter((member) => !appliedNames.has(member.name)).map((member) => <span key={member.id}>{member.name}</span>) || null}</article></div></section>
         {canManage && <button className="danger-button" onClick={() => { if (window.confirm("이 시간표를 폐기할까요?")) onDelete(); }}>시간표 폐기</button>}
       </section>
