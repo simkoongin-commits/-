@@ -2429,7 +2429,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
   flex-direction: column;
   gap: 7px;
   padding: 44px 16px 76px;
-  overflow-y: auto;
+  overflow: hidden;
   border: 0;
   border-radius: 0 24px 24px 0;
   background: linear-gradient(145deg, #fff 0%, #e9f7ff 100%);
@@ -2481,7 +2481,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
   background: transparent;
   border: 0;
 }
-.member-toolbar .room-status { min-width: 92px; margin: 0; }
+.member-toolbar .room-status { min-width: 92px; margin: 0; transform: translateX(-10px); }
 .room-toggle { min-width: 82px; min-height: 34px; border: 1px solid #c7e6f5; background: #ecf8ff; box-shadow: 0 5px 13px rgba(16, 92, 124, .1); color: #176f9f; font-size: 11px; }
 .room-toggle:disabled { opacity: .92; }
 .room-toggle.on { background: #dcf6df; border-color: #a9deb4; box-shadow: 0 0 14px rgba(120, 214, 142, .45); color: #267a42; }
