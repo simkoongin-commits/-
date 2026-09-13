@@ -16,10 +16,22 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  runTransaction,
   setDoc,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { toPng } from "html-to-image";
 import { auth, db, storage } from "@/lib/firebase";
+import EquipmentManagement, { type EquipmentDraft } from "@/app/components/EquipmentManagement";
+import {
+  canRentEquipment,
+  equipmentName,
+  makeEquipmentId,
+  releaseEquipment,
+  type Equipment,
+  type EquipmentRental,
+  type RentalNote,
+} from "@/lib/equipment";
 
 type Member = {
   id: string;
@@ -1093,7 +1105,7 @@ function BootstrapAdmin({
 export default function Home() {
   const [practices, setPractices] = useState<Practice[]>(seedPractices);
   const [view, setView] = useState<
-    "education" | "cards" | "calendar" | "members" | "hall"
+    "education" | "cards" | "calendar" | "members" | "hall" | "equipment"
   >("cards");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
   const [filter, setFilter] = useState<
@@ -1135,6 +1147,8 @@ export default function Home() {
   const [showCalendarForm, setShowCalendarForm] = useState(false);
   const [roomStatus, setRoomStatus] = useState<RoomStatus>({ isOpen: false });
   const [hallOfFame, setHallOfFame] = useState<HallOfFame>(emptyHall);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [equipmentRentals, setEquipmentRentals] = useState<EquipmentRental[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
@@ -1208,6 +1222,8 @@ export default function Home() {
           calendarEvents: [],
           roomStatus: { isOpen: false },
           hallOfFame: emptyHall(),
+          equipment: [],
+          equipmentRentals: [],
           }).catch(() => {
             setAccessError(
               "공동 일정판을 준비하지 못했어요. 다시 로그인한 뒤 시도해주세요.",
@@ -1243,12 +1259,16 @@ export default function Home() {
               : [],
             roomStatus: (data.roomStatus as RoomStatus) || { isOpen: false },
             hallOfFame: normalizeHall(data.hallOfFame as StoredHallOfFame | undefined),
+            equipment: Array.isArray(data.equipment) ? data.equipment as Equipment[] : [],
+            equipmentRentals: Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [],
           };
           cloudState.current = JSON.stringify(emptyState);
           setPractices(emptyState.practices);
           setClubMembers([]);
           setCurrentTerm(term);
           setCopyFormats(emptyState.copyFormats);
+          setEquipment(emptyState.equipment);
+          setEquipmentRentals(emptyState.equipmentRentals);
           setNeedsBootstrap(true);
           setReady(true);
           return;
@@ -1278,6 +1298,8 @@ export default function Home() {
             : [],
           roomStatus: (data.roomStatus as RoomStatus) || { isOpen: false },
           hallOfFame: normalizeHall(data.hallOfFame as StoredHallOfFame | undefined),
+          equipment: Array.isArray(data.equipment) ? data.equipment as Equipment[] : [],
+          equipmentRentals: Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [],
         };
         cloudState.current = JSON.stringify(next);
         setPractices(next.practices);
@@ -1289,6 +1311,8 @@ export default function Home() {
         setCalendarEvents(next.calendarEvents);
         setRoomStatus(next.roomStatus);
         setHallOfFame(next.hallOfFame);
+        setEquipment(next.equipment);
+        setEquipmentRentals(next.equipmentRentals);
         setSession(member);
         setReady(true);
       },
@@ -1312,6 +1336,8 @@ export default function Home() {
       calendarEvents,
       roomStatus,
       hallOfFame,
+      equipment,
+      equipmentRentals,
     });
     if (cloudState.current === next) return;
     cloudState.current = next;
@@ -1325,15 +1351,34 @@ export default function Home() {
       calendarEvents,
       roomStatus,
       hallOfFame,
+      equipment,
+      equipmentRentals,
     }).catch(() => {
       cloudState.current = "";
       setAccessError(
         "공동 데이터 저장에 실패했어요. 잠시 후 다시 시도해주세요.",
       );
     });
-  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, ready, authUser]);
+  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, ready, authUser]);
+  useEffect(() => {
+    if (!ready || !authUser) return;
+    const cleanExpiredRentals = async () => {
+      const clubRef = doc(db, "clubs", "simgunghoe");
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(clubRef);
+        if (!snapshot.exists()) return;
+        const current = Array.isArray(snapshot.data().equipmentRentals) ? snapshot.data().equipmentRentals as EquipmentRental[] : [];
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        const next = current.filter((rental) => !(rental.status === "returned" && (rental.notes || []).length === 0 && rental.completedAt && new Date(rental.completedAt).getTime() <= cutoff));
+        if (next.length !== current.length) transaction.set(clubRef, { equipmentRentals: next }, { merge: true });
+      });
+    };
+    void cleanExpiredRentals();
+    const timer = window.setInterval(() => void cleanExpiredRentals(), 15 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [ready, authUser]);
   const finishBootstrap = async (member: Member) => {
-    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame };
+    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals };
     try {
       await setDoc(doc(db, "clubs", "simgunghoe"), next);
       cloudState.current = JSON.stringify(next);
@@ -1494,6 +1539,138 @@ export default function Home() {
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 1900);
+  };
+  const addEquipment = async (draft: EquipmentDraft) => {
+    if (session.role !== "관리자") throw new Error("관리자만 장비를 등록할 수 있어요.");
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      const current = snapshot.exists() && Array.isArray(snapshot.data().equipment)
+        ? snapshot.data().equipment as Equipment[]
+        : [];
+      if (draft.kind === "arrow" && current.some((item) => item.kind === "arrow" && item.lengthWeight === draft.lengthWeight && item.index === draft.index && item.indexNumber === draft.indexNumber)) {
+        throw new Error("같은 인덱스 넘버의 화살이 이미 등록되어 있어요.");
+      }
+      const item: Equipment = {
+        ...draft,
+        id: makeEquipmentId(),
+        manualAvailable: true,
+        status: "available",
+        createdAt: new Date().toISOString(),
+      } as Equipment;
+      transaction.set(clubRef, { equipment: [...current, item] }, { merge: true });
+    });
+  };
+  const toggleEquipmentAvailability = async (id: string) => {
+    if (session.role !== "관리자") throw new Error("관리자만 대여 가능 상태를 변경할 수 있어요.");
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      const current = snapshot.exists() && Array.isArray(snapshot.data().equipment) ? snapshot.data().equipment as Equipment[] : [];
+      transaction.set(clubRef, { equipment: current.map((item) => item.id === id ? { ...item, manualAvailable: !item.manualAvailable } : item) }, { merge: true });
+    });
+  };
+  const validateRentalNotes = (notes: RentalNote[], itemIds: string[]) => {
+    for (const note of notes) {
+      if (note.type === "custom" && !note.text?.trim()) throw new Error("직접입력 비고 내용을 작성해주세요.");
+      if (note.type !== "custom" && note.itemIds.length === 0) throw new Error(`${note.type === "lost" ? "분실" : "손상"} 장비를 선택해주세요.`);
+      if (note.itemIds.some((id) => !itemIds.includes(id))) throw new Error("대여 목록에 없는 장비가 비고에 포함되어 있어요.");
+      if (note.type === "damaged" && note.itemIds.some((id) => !note.details?.[id]?.trim())) throw new Error("손상된 장비마다 손상 내용을 입력해주세요.");
+    }
+  };
+  const createEquipmentRental = async (itemIds: string[], loanDate: string, notes: RentalNote[]) => {
+    if (!loanDate) throw new Error("대여일을 선택해주세요.");
+    validateRentalNotes(notes, itemIds);
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      if (!snapshot.exists()) throw new Error("장비 데이터를 불러오지 못했어요.");
+      const data = snapshot.data();
+      const current = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
+      const currentRentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
+      const selected = itemIds.map((id) => current.find((item) => item.id === id));
+      if (selected.some((item) => !item)) throw new Error("삭제된 장비가 포함되어 대여가 취소됐습니다.");
+      const unavailable = selected.filter((item): item is Equipment => Boolean(item && !canRentEquipment(item)));
+      if (unavailable.length) throw new Error(`선택한 장비 중 다른 회원이 먼저 대여했거나 대여할 수 없는 장비가 있어 전체 대여를 취소했어요: ${unavailable.map(equipmentName).join(", ")}`);
+      const rentalId = makeEquipmentId();
+      const lostIds = new Set(notes.filter((note) => note.type === "lost").flatMap((note) => note.itemIds));
+      const damagedIds = new Set(notes.filter((note) => note.type === "damaged").flatMap((note) => note.itemIds));
+      const nextEquipment = current.map((item) => {
+        if (!itemIds.includes(item.id)) return item;
+        const status = lostIds.has(item.id) ? "lost" : damagedIds.has(item.id) ? "damaged" : "rented";
+        return { ...item, status, holderId: session.id, holderName: session.name, activeRentalId: rentalId } as Equipment;
+      });
+      const rental: EquipmentRental = { id: rentalId, memberId: session.id, memberName: session.name, loanDate, itemIds, notes, status: "active", createdAt: new Date().toISOString() };
+      transaction.set(clubRef, { equipment: nextEquipment, equipmentRentals: [...currentRentals, rental] }, { merge: true });
+    });
+  };
+  const addEquipmentRentalNotes = async (rentalId: string, notes: RentalNote[]) => {
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      if (!snapshot.exists()) throw new Error("대여 기록을 불러오지 못했어요.");
+      const data = snapshot.data();
+      const current = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
+      const currentRentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
+      const rental = currentRentals.find((item) => item.id === rentalId);
+      if (!rental || rental.status !== "active") throw new Error("이미 반납된 대여 기록이에요.");
+      if (rental.memberId !== session.id && session.role !== "관리자") throw new Error("본인의 대여 기록만 수정할 수 있어요.");
+      validateRentalNotes(notes, rental.itemIds);
+      const lostIds = new Set(notes.filter((note) => note.type === "lost").flatMap((note) => note.itemIds));
+      const damagedIds = new Set(notes.filter((note) => note.type === "damaged").flatMap((note) => note.itemIds));
+      const nextEquipment = current.map((item) => {
+        if (!rental.itemIds.includes(item.id)) return item;
+        if (lostIds.has(item.id)) return { ...item, status: "lost" } as Equipment;
+        if (damagedIds.has(item.id) && item.status !== "lost") return { ...item, status: "damaged" } as Equipment;
+        return item;
+      });
+      transaction.set(clubRef, {
+        equipment: nextEquipment,
+        equipmentRentals: currentRentals.map((item) => item.id === rentalId ? { ...item, notes: [...(item.notes || []), ...notes] } : item),
+      }, { merge: true });
+    });
+  };
+  const returnEquipmentRental = async (rentalId: string) => {
+    if (session.role !== "관리자") throw new Error("관리자만 반납을 완료할 수 있어요.");
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      if (!snapshot.exists()) throw new Error("대여 기록을 불러오지 못했어요.");
+      const data = snapshot.data();
+      const current = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
+      const currentRentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
+      const rental = currentRentals.find((item) => item.id === rentalId);
+      if (!rental || rental.status === "returned") throw new Error("이미 반납 완료된 기록이에요.");
+      const completedAt = new Date().toISOString();
+      const returnDate = completedAt.slice(0, 10);
+      transaction.set(clubRef, {
+        equipment: current.map((item) => item.activeRentalId === rentalId && item.status === "rented" ? releaseEquipment(item) : item),
+        equipmentRentals: currentRentals.map((item) => item.id === rentalId ? { ...item, status: "returned", returnDate, completedAt } : item),
+      }, { merge: true });
+    });
+  };
+  const restoreEquipmentItem = async (itemId: string, action: "recover" | "repair") => {
+    if (session.role !== "관리자") throw new Error("관리자만 장비 상태를 해제할 수 있어요.");
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      const current = snapshot.exists() && Array.isArray(snapshot.data().equipment) ? snapshot.data().equipment as Equipment[] : [];
+      const target = current.find((item) => item.id === itemId);
+      const expected = action === "recover" ? "lost" : "damaged";
+      if (!target || target.status !== expected) throw new Error("장비 상태가 이미 변경됐어요.");
+      transaction.set(clubRef, { equipment: current.map((item) => item.id === itemId ? releaseEquipment(item) : item) }, { merge: true });
+    });
+  };
+  const deleteEquipmentRental = async (rentalId: string) => {
+    if (session.role !== "관리자") throw new Error("관리자만 대여 기록을 삭제할 수 있어요.");
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      const currentRentals = snapshot.exists() && Array.isArray(snapshot.data().equipmentRentals) ? snapshot.data().equipmentRentals as EquipmentRental[] : [];
+      const target = currentRentals.find((item) => item.id === rentalId);
+      if (!target || target.status !== "returned") throw new Error("반납 완료된 기록만 삭제할 수 있어요.");
+      transaction.set(clubRef, { equipmentRentals: currentRentals.filter((item) => item.id !== rentalId) }, { merge: true });
+    });
   };
   const saveEducationSchedules = (next: EducationSchedule[]) => {
     setEducationSchedules(next);
@@ -1809,6 +1986,9 @@ export default function Home() {
         </button>
         <button className={view === "hall" ? "active" : ""} onClick={() => { setView("hall"); setMenuOpen(false); }}>
           <span>♛</span>명예의 전당
+        </button>
+        <button className={view === "equipment" ? "active" : ""} onClick={() => { setView("equipment"); setMenuOpen(false); }}>
+          <span>⌁</span>장비 관리
         </button>
       </nav>
       {view === "cards" && (
@@ -2193,6 +2373,20 @@ export default function Home() {
           members={clubMembers}
           editable={session.role === "관리자"}
           onChange={setHallOfFame}
+        />
+      )}
+      {view === "equipment" && (
+        <EquipmentManagement
+          equipment={equipment}
+          rentals={equipmentRentals}
+          session={session}
+          onAddEquipment={addEquipment}
+          onToggleAvailability={toggleEquipmentAvailability}
+          onCreateRental={createEquipmentRental}
+          onAddRentalNotes={addEquipmentRentalNotes}
+          onReturnRental={returnEquipmentRental}
+          onRestoreItem={restoreEquipmentItem}
+          onDeleteRental={deleteEquipmentRental}
         />
       )}
       {participants && (
@@ -2887,7 +3081,16 @@ function CalendarEventForm({
 
 function HallOfFameView({ hall, members, editable, onChange }: { hall: HallOfFame; members: Member[]; editable: boolean; onChange: (hall: HallOfFame) => void }) {
   const icons = ["🎉", "👑", "🥉", "🥈", "🥇", "🏆"];
-  return <section className="content hall-page"><div className="hall-paper"><header><h2>명예의 전당</h2></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button aria-label="삭제" onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : <small>아직 기록된 회원이 없어요</small>}</p></div>{editable && <select value="" onChange={(e) => { if (!e.target.value) return; onChange({ ...hall, [rank]: [...hall[rank], e.target.value] }); }}><option value="">추가</option>{members.filter((member) => !Object.values(hall).flat().includes(member.id)).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div></section>;
+  const captureRef = useRef<HTMLDivElement>(null);
+  const saveImage = async () => {
+    if (!captureRef.current) return;
+    const dataUrl = await toPng(captureRef.current, { cacheBust: true, pixelRatio: 2, filter: (node) => !(node instanceof HTMLElement && node.classList.contains("hall-admin-control")) });
+    const link = document.createElement("a");
+    link.download = `심궁회-명예의전당-${new Date().toISOString().slice(0, 10)}.png`;
+    link.href = dataUrl;
+    link.click();
+  };
+  return <section className="content hall-page"><div className="hall-paper" ref={captureRef}><header><h2>명예의 전당</h2></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button className="hall-admin-control" aria-label="삭제" onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : <small>아직 기록된 회원이 없어요</small>}</p></div>{editable && <select className="hall-admin-control" value="" onChange={(e) => { if (!e.target.value) return; onChange({ ...hall, [rank]: [...hall[rank], e.target.value] }); }}><option value="">추가</option>{members.filter((member) => !Object.values(hall).flat().includes(member.id)).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div><button className="hall-save-image" onClick={() => void saveImage()}>이미지 저장</button></section>;
 }
 
 function Calendar({
