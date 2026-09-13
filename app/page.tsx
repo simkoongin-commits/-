@@ -1141,6 +1141,17 @@ export default function Home() {
   useEffect(() => {
     return onAuthStateChanged(auth, setAuthUser);
   }, []);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [menuOpen]);
   useEffect(
     () =>
       onSnapshot(doc(db, "public", "simgunghoe"), (snapshot) => {
