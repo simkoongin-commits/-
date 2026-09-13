@@ -1656,7 +1656,7 @@ export default function Home() {
           회원 전용
         </button>
       </div>
-      <header className="topbar">
+      <div className="member-toolbar">
         <a className="brand" href="#">
           <span className="brandmark">
             <img src="/hanyang-mark.png" alt="한양대학교 마크" />
@@ -1717,7 +1717,7 @@ export default function Home() {
             로그아웃
           </button>
         </div>
-      </header>
+      </div>
       {view !== "education" && <section className="hero">
         <img
           className="hero-logo"
