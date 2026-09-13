@@ -2396,31 +2396,34 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
   z-index: 80;
   inset: 0;
   border: 0;
-  background: rgba(21, 51, 61, .36);
+  background: rgba(19, 70, 104, .32);
   backdrop-filter: blur(4px);
 }
 .menu-toggle {
   position: fixed;
   z-index: 83;
-  left: 14px;
+  left: max(14px, calc(50vw - 226px));
   bottom: calc(14px + env(safe-area-inset-bottom));
   width: 42px;
   height: 42px;
   border: 0;
   border-radius: 14px;
-  background: #fff;
-  color: #16866c;
-  box-shadow: 0 10px 26px rgba(22, 92, 105, .23);
+  background: #1684c3;
+  color: #fff;
+  box-shadow: 0 10px 26px rgba(21, 111, 162, .28);
   font-size: 18px;
   line-height: 1;
   transition: left .3s ease, color .2s ease, background .2s ease;
 }
-.menu-toggle.open { left: min(calc(52vw - 55px), 205px); background: #1ca47f; color: #fff; }
+.menu-toggle.open { left: min(calc(52vw - 55px), 195px); background: #1684c3; color: #fff; }
 .tabs {
   position: fixed;
   z-index: 82;
-  inset: 0 auto 0 0;
-  width: min(52vw, 260px);
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: max(0px, calc(50vw - 240px));
+  width: min(52vw, 250px);
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -2429,8 +2432,8 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
   overflow-y: auto;
   border: 0;
   border-radius: 0 24px 24px 0;
-  background: linear-gradient(135deg, #fff 0%, #f1fcf8 100%);
-  box-shadow: 12px 0 35px rgba(17, 58, 62, .18);
+  background: linear-gradient(145deg, #fff 0%, #e9f7ff 100%);
+  box-shadow: 12px 0 35px rgba(24, 91, 132, .2);
   transform: translateX(-105%);
   visibility: hidden;
   pointer-events: none;
@@ -2442,8 +2445,8 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
   pointer-events: auto;
 }
 .drawer-head { display: grid; gap: 7px; margin: 4px 0 19px; padding: 0 8px 19px; border-bottom: 1px solid #dcece7; }
-.drawer-head b { color: #123d38; font-size: 23px; letter-spacing: -2px; }
-.drawer-head b em { color: #24a784; font-style: normal; }
+.drawer-head b { color: #141d23; font-size: 23px; letter-spacing: -2px; }
+.drawer-head b em { color: inherit; font-style: normal; }
 .drawer-head span { color: #7a8e89; font-size: 10px; font-weight: 700; }
 .tabs.expanded button {
   width: 100%;
@@ -2461,16 +2464,39 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
   font-size: 13px;
   font-weight: 850;
 }
-.tabs.expanded button span { display: block; width: 22px; color: #1b9a78; text-align: center; font-size: 18px; line-height: 1; }
-.tabs.expanded button.active { background: #e2f7ef; color: #16765d; box-shadow: inset 0 0 0 1px #bde8d9; }
+.tabs.expanded button span { display: block; width: 22px; color: #1684c3; text-align: center; font-size: 18px; line-height: 1; }
+.tabs.expanded button.active { background: #dff3ff; color: #126fa6; box-shadow: inset 0 0 0 1px #b9e1f6; }
 .tabs.expanded button.active::after { display: none; }
 
-/* 동방 상태는 메인 카드에서 항상 식별 가능하게 표시 */
-.topbar .room-status { min-width: 92px; margin: 0 auto; }
+/* 회원 정보와 동방 상태를 본문 흐름에 배치 */
+.member-toolbar {
+  width: 100%;
+  min-height: 70px;
+  padding: 15px 20px 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  position: static;
+  background: transparent;
+  border: 0;
+}
+.member-toolbar .room-status { min-width: 92px; margin: 0; }
 .room-toggle { min-width: 82px; min-height: 34px; border: 1px solid #c7e6f5; background: #ecf8ff; box-shadow: 0 5px 13px rgba(16, 92, 124, .1); color: #176f9f; font-size: 11px; }
 .room-toggle:disabled { opacity: .92; }
-.room-toggle.on { background: #24a879; border-color: #d0ffeb; box-shadow: 0 0 18px rgba(98, 255, 177, .72); color: #fff; }
+.room-toggle.on { background: #dcf6df; border-color: #a9deb4; box-shadow: 0 0 14px rgba(120, 214, 142, .45); color: #267a42; }
 .room-status small { max-width: 54px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (min-width: 481px) {
+  .menu-toggle.open { left: calc(50vw - 45px); }
+}
+@media (max-width: 580px) {
+  .member-toolbar { min-height: 66px; padding: 13px 16px 10px; gap: 8px; }
+  .member-toolbar .brandmark { width: 36px; height: 36px; }
+  .member-toolbar .brand small { display: none; }
+  .member-toolbar .room-status { min-width: 82px; }
+  .member-toolbar .room-toggle { min-width: 76px; padding: 7px 9px; }
+}
 
 /* 명예의 전당: 캔바 기록지 스타일 */
 .hall-page { padding: 22px 14px 108px; }
