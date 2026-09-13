@@ -2374,13 +2374,10 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .preliminary-status b, .preliminary-status span { display: block; color: #2a637f; font-size: 12px; }
 .preliminary-status b { margin-bottom: 7px; font-weight: 900; }
 .preliminary-status span { padding: 3px 0; }
-.room-status { position: absolute; top: 152px; right: 27%; display: flex; align-items: center; gap: 7px; }
+.room-status { display: flex; align-items: center; justify-content: center; gap: 7px; }
 .room-toggle { border: 1px solid #d3ecf6; border-radius: 999px; background: #ffffff50; color: #fff; padding: 8px 11px; font-size: 11px; font-weight: 900; }
 .room-toggle.on { background: #2fb66b; border-color: #b9ffd5; box-shadow: 0 0 16px #60f29cae; }
-.room-status small { color: #fff; font-size: 10px; font-weight: 800; }
-.menu-toggle { position: fixed; z-index: 32; left: 18px; bottom: 18px; width: 46px; height: 46px; border: 0; border-radius: 50%; background: #1b79ad; color: #fff; box-shadow: 0 8px 18px #12638f55; font-size: 19px; }
-.tabs.expanded { position: fixed; z-index: 31; left: 18px; bottom: 72px; width: 154px; display: grid; grid-template-columns: 1fr; padding: 8px; border-radius: 16px; box-shadow: 0 12px 30px #153f5b40; }
-.tabs.expanded button { min-height: 43px; justify-content: flex-start; padding-left: 12px; }
+.room-status small { color: #43738f; font-size: 10px; font-weight: 800; }
 .hall-page { padding-bottom: 42px; }
 .hall-tower { display: grid; gap: 9px; align-items: end; }
 .hall-rank { padding: 13px 15px; border-radius: 13px; background: linear-gradient(90deg, #eaf5ff, #fff); border: 1px solid #d6e8f3; }
@@ -2403,59 +2400,77 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
   backdrop-filter: blur(4px);
 }
 .menu-toggle {
+  position: fixed;
   z-index: 83;
-  left: 18px;
-  bottom: calc(18px + env(safe-area-inset-bottom));
-  width: 64px;
-  height: 64px;
-  border-radius: 21px;
+  left: 14px;
+  bottom: calc(14px + env(safe-area-inset-bottom));
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 14px;
   background: #fff;
   color: #16866c;
   box-shadow: 0 10px 26px rgba(22, 92, 105, .23);
-  font-size: 27px;
+  font-size: 18px;
   line-height: 1;
+  transition: left .3s ease, color .2s ease, background .2s ease;
 }
-.menu-toggle.open { left: min(calc(78vw - 78px), 322px); background: #1ca47f; color: #fff; }
-.tabs.expanded {
+.menu-toggle.open { left: min(calc(52vw - 55px), 205px); background: #1ca47f; color: #fff; }
+.tabs {
   position: fixed;
   z-index: 82;
   inset: 0 auto 0 0;
-  width: min(78vw, 400px);
+  width: min(52vw, 260px);
   height: 100dvh;
   display: flex;
   flex-direction: column;
   gap: 7px;
-  padding: 48px 25px 98px;
+  padding: 44px 16px 76px;
   overflow-y: auto;
   border: 0;
-  border-radius: 0 28px 28px 0;
+  border-radius: 0 24px 24px 0;
   background: linear-gradient(135deg, #fff 0%, #f1fcf8 100%);
   box-shadow: 12px 0 35px rgba(17, 58, 62, .18);
+  transform: translateX(-105%);
+  visibility: hidden;
+  pointer-events: none;
+  transition: transform .3s ease, visibility .3s;
 }
-.drawer-head { display: grid; gap: 9px; margin: 4px 0 24px; padding: 0 10px 24px; border-bottom: 1px solid #dcece7; }
-.drawer-head b { color: #123d38; font-size: 29px; letter-spacing: -2px; }
+.tabs.expanded {
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+}
+.drawer-head { display: grid; gap: 7px; margin: 4px 0 19px; padding: 0 8px 19px; border-bottom: 1px solid #dcece7; }
+.drawer-head b { color: #123d38; font-size: 23px; letter-spacing: -2px; }
 .drawer-head b em { color: #24a784; font-style: normal; }
-.drawer-head span { color: #7a8e89; font-size: 12px; font-weight: 700; }
+.drawer-head span { color: #7a8e89; font-size: 10px; font-weight: 700; }
 .tabs.expanded button {
   width: 100%;
-  min-height: 54px;
+  min-height: 48px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   justify-content: flex-start;
-  gap: 15px;
-  padding: 0 16px;
-  border-radius: 16px;
+  gap: 10px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
   color: #4d645f;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 850;
 }
-.tabs.expanded button span { width: 25px; color: #1b9a78; text-align: center; font-size: 21px; }
+.tabs.expanded button span { display: block; width: 22px; color: #1b9a78; text-align: center; font-size: 18px; line-height: 1; }
 .tabs.expanded button.active { background: #e2f7ef; color: #16765d; box-shadow: inset 0 0 0 1px #bde8d9; }
+.tabs.expanded button.active::after { display: none; }
 
 /* 동방 상태는 메인 카드에서 항상 식별 가능하게 표시 */
-.hero .room-status { z-index: 6; top: 150px; right: 31px; gap: 7px; }
-.room-toggle { min-width: 88px; min-height: 36px; border: 1px solid rgba(255, 255, 255, .85); background: rgba(255, 255, 255, .26); box-shadow: 0 5px 13px rgba(16, 92, 124, .14); color: #fff; font-size: 11px; }
+.topbar .room-status { min-width: 92px; margin: 0 auto; }
+.room-toggle { min-width: 82px; min-height: 34px; border: 1px solid #c7e6f5; background: #ecf8ff; box-shadow: 0 5px 13px rgba(16, 92, 124, .1); color: #176f9f; font-size: 11px; }
 .room-toggle:disabled { opacity: .92; }
-.room-toggle.on { background: #24a879; border-color: #d0ffeb; box-shadow: 0 0 18px rgba(98, 255, 177, .92); }
-.room-status small { max-width: 70px; overflow: hidden; color: #fff; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.room-toggle.on { background: #24a879; border-color: #d0ffeb; box-shadow: 0 0 18px rgba(98, 255, 177, .72); color: #fff; }
+.room-status small { max-width: 54px; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 명예의 전당: 캔바 기록지 스타일 */
 .hall-page { padding: 22px 14px 108px; }
@@ -2463,12 +2478,10 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .hall-paper::before { position: absolute; inset: 0; content: ""; opacity: .3; background: repeating-linear-gradient(25deg, transparent 0 10px, rgba(130, 122, 110, .09) 11px, transparent 12px 20px); pointer-events: none; }
 .hall-paper header, .hall-records { position: relative; z-index: 1; }
 .hall-paper header { text-align: center; }
-.hall-paper header p { margin: 0; color: #a89071; font-size: 10px; font-weight: 800; letter-spacing: 1.8px; }
-.hall-paper header h2 { margin: 7px 0 2px; color: #24201b; font-family: Georgia, "Nanum Myeongjo", serif; font-size: 31px; letter-spacing: -2px; }
-.hall-paper header span { color: #8e8478; font-size: 12px; font-weight: 700; }
+.hall-paper header h2 { margin: 0; color: #24201b; font-family: Georgia, "Nanum Myeongjo", serif; font-size: 31px; letter-spacing: -2px; }
 .hall-records { display: grid; gap: 26px; margin-top: 38px; }
-.hall-records article { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: start; gap: 10px; padding-bottom: 17px; border-bottom: 1px solid rgba(129, 119, 106, .17); }
-.hall-records article i { padding-top: 2px; font-size: 30px; font-style: normal; filter: drop-shadow(0 2px 1px rgba(65, 45, 20, .08)); }
+.hall-records article { display: grid; grid-template-columns: 46px minmax(0, 1fr) 70px; align-items: start; gap: 10px; padding-bottom: 17px; border-bottom: 1px solid rgba(129, 119, 106, .17); }
+.hall-records article i { width: 46px; padding-top: 1px; font-size: 30px; line-height: 34px; text-align: center; font-style: normal; filter: drop-shadow(0 2px 1px rgba(65, 45, 20, .08)); }
 .hall-records article b { color: #16130f; font-family: Georgia, "Nanum Myeongjo", serif; font-size: 23px; letter-spacing: -1.5px; }
 .hall-records article p { display: flex; flex-wrap: wrap; gap: 5px 8px; margin: 7px 0 0; color: #716d68; font-family: "Nanum Myeongjo", Georgia, serif; font-size: 18px; line-height: 1.45; }
 .hall-records article p span::after { content: ","; }
@@ -2477,11 +2490,6 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .hall-records article p small { color: #9a958f; font-family: inherit; font-size: 13px; }
 .hall-records article select { max-width: 70px; min-height: 30px; margin-top: 2px; border: 1px solid #d8d0c3; border-radius: 8px; background: #fffdfa; color: #695f52; font-size: 11px; }
 .hall-paper > img { position: absolute; right: -14px; bottom: 10px; width: 58%; opacity: .09; filter: grayscale(1); transform: rotate(-7deg); }
-.hall-records article:nth-child(1) { transform: translateX(6px); }
-.hall-records article:nth-child(2) { transform: translateX(1px); }
-.hall-records article:nth-child(3) { transform: translateX(5px); }
-.hall-records article:nth-child(4) { transform: translateX(0); }
-.hall-records article:nth-child(5) { transform: translateX(7px); }
 .hall-records article:nth-child(6) { margin-top: 7px; padding-top: 16px; border-top: 1px solid rgba(129, 119, 106, .17); }
 @media (max-width: 480px) {
   .schedule-modal-back { align-items: end; padding: 0; }
