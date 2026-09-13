@@ -107,10 +107,19 @@ type CalendarEvent = {
   createdBy: string;
 };
 type RoomStatus = { isOpen: boolean; openedBy?: string; openedByName?: string };
-type HallRank = "초1중" | "초2중" | "초3중" | "초4중" | "초5중" | "단";
+type HallRank = "초1중" | "초2중" | "초3중" | "초4중" | "초몰기" | "단";
 type HallOfFame = Record<HallRank, string[]>;
-const hallRanks: HallRank[] = ["초1중", "초2중", "초3중", "초4중", "초5중", "단"];
-const emptyHall = (): HallOfFame => ({ "초1중": [], "초2중": [], "초3중": [], "초4중": [], "초5중": [], "단": [] });
+type StoredHallOfFame = Partial<HallOfFame> & { "초5중"?: string[] };
+const hallRanks: HallRank[] = ["초1중", "초2중", "초3중", "초4중", "초몰기", "단"];
+const emptyHall = (): HallOfFame => ({ "초1중": [], "초2중": [], "초3중": [], "초4중": [], "초몰기": [], "단": [] });
+const normalizeHall = (stored?: StoredHallOfFame): HallOfFame => ({
+  "초1중": stored?.["초1중"] || [],
+  "초2중": stored?.["초2중"] || [],
+  "초3중": stored?.["초3중"] || [],
+  "초4중": stored?.["초4중"] || [],
+  "초몰기": stored?.["초몰기"] || stored?.["초5중"] || [],
+  "단": stored?.["단"] || [],
+});
 const educationCacheKey = (kind: "schedules" | "mentors") =>
   `simgunghoe:education:${kind}`;
 const readEducationCache = <T,>(kind: "schedules" | "mentors", fallback: T) => {
@@ -1222,7 +1231,7 @@ export default function Home() {
               ? (data.calendarEvents as CalendarEvent[])
               : [],
             roomStatus: (data.roomStatus as RoomStatus) || { isOpen: false },
-            hallOfFame: (data.hallOfFame as HallOfFame) || emptyHall(),
+            hallOfFame: normalizeHall(data.hallOfFame as StoredHallOfFame | undefined),
           };
           cloudState.current = JSON.stringify(emptyState);
           setPractices(emptyState.practices);
@@ -1257,7 +1266,7 @@ export default function Home() {
             ? (data.calendarEvents as CalendarEvent[])
             : [],
           roomStatus: (data.roomStatus as RoomStatus) || { isOpen: false },
-          hallOfFame: (data.hallOfFame as HallOfFame) || emptyHall(),
+          hallOfFame: normalizeHall(data.hallOfFame as StoredHallOfFame | undefined),
         };
         cloudState.current = JSON.stringify(next);
         setPractices(next.practices);
@@ -1657,6 +1666,17 @@ export default function Home() {
             <small>습사 일정 관리</small>
           </span>
         </a>
+        <div className="room-status">
+          <button
+            className={roomStatus.isOpen ? "room-toggle on" : "room-toggle"}
+            disabled={session.grade === "예비신사"}
+            onClick={() => {
+              if (roomStatus.isOpen && roomStatus.openedBy !== session.id) return;
+              setRoomStatus(roomStatus.isOpen ? { isOpen: false } : { isOpen: true, openedBy: session.id, openedByName: session.name });
+            }}
+          >동방 {roomStatus.isOpen ? "ON" : "OFF"}</button>
+          {roomStatus.isOpen && <small>{roomStatus.openedByName}</small>}
+        </div>
         <div className="account">
           {(session.role === "관리자" || session.grade === "구사") &&
             publicQuestions.some((item) => item.status === "waiting") && (
@@ -1709,17 +1729,6 @@ export default function Home() {
           <h1>
             심궁<em>회</em>
           </h1>
-        </div>
-        <div className="room-status">
-          <button
-            className={roomStatus.isOpen ? "room-toggle on" : "room-toggle"}
-            disabled={session.grade === "예비신사"}
-            onClick={() => {
-              if (roomStatus.isOpen && roomStatus.openedBy !== session.id) return;
-              setRoomStatus(roomStatus.isOpen ? { isOpen: false } : { isOpen: true, openedBy: session.id, openedByName: session.name });
-            }}
-          >동방 {roomStatus.isOpen ? "ON" : "OFF"}</button>
-          {roomStatus.isOpen && <small>{roomStatus.openedByName}</small>}
         </div>
         <button
           className="next-box"
@@ -2867,7 +2876,7 @@ function CalendarEventForm({
 
 function HallOfFameView({ hall, members, editable, onChange }: { hall: HallOfFame; members: Member[]; editable: boolean; onChange: (hall: HallOfFame) => void }) {
   const icons = ["🎉", "👑", "🥉", "🥈", "🥇", "🏆"];
-  return <section className="content hall-page"><div className="hall-paper"><header><p>SIMKOONG ARCHERY CLUB</p><h2>명예의 전당</h2><span>9월 기록</span></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button aria-label="삭제" onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : <small>아직 기록된 회원이 없어요</small>}</p></div>{editable && <select value="" onChange={(e) => { if (!e.target.value) return; onChange({ ...hall, [rank]: [...hall[rank], e.target.value] }); }}><option value="">추가</option>{members.filter((member) => !Object.values(hall).flat().includes(member.id)).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div></section>;
+  return <section className="content hall-page"><div className="hall-paper"><header><h2>명예의 전당</h2></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button aria-label="삭제" onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : <small>아직 기록된 회원이 없어요</small>}</p></div>{editable && <select value="" onChange={(e) => { if (!e.target.value) return; onChange({ ...hall, [rank]: [...hall[rank], e.target.value] }); }}><option value="">추가</option>{members.filter((member) => !Object.values(hall).flat().includes(member.id)).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div></section>;
 }
 
 function Calendar({
