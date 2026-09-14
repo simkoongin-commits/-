@@ -27,6 +27,8 @@ import sanitizeHtml from "sanitize-html";
 import { auth, db, storage } from "@/lib/firebase";
 import EquipmentManagement, { type EquipmentDraft } from "@/app/components/EquipmentManagement";
 import {
+  assignBowIndexes,
+  bowGroupKey,
   canRentEquipment,
   equipmentName,
   makeEquipmentId,
@@ -1337,6 +1339,11 @@ export default function Home() {
           return;
         }
         const data = snapshot.data();
+        const storedEquipment = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
+        const indexedEquipment = assignBowIndexes(storedEquipment);
+        if (JSON.stringify(indexedEquipment) !== JSON.stringify(storedEquipment)) {
+          void setDoc(clubDoc, { equipment: indexedEquipment }, { merge: true });
+        }
         const term =
           typeof data.currentTerm === "string" ? data.currentTerm : "26-2";
         const members = Array.isArray(data.members)
@@ -1363,7 +1370,7 @@ export default function Home() {
               : [],
             roomStatus: (data.roomStatus as RoomStatus) || { isOpen: false },
             hallOfFame: normalizeHall(data.hallOfFame as StoredHallOfFame | undefined),
-            equipment: Array.isArray(data.equipment) ? data.equipment as Equipment[] : [],
+            equipment: indexedEquipment,
             equipmentRentals: Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [],
           };
           cloudState.current = JSON.stringify(emptyState);
@@ -1402,7 +1409,7 @@ export default function Home() {
             : [],
           roomStatus: (data.roomStatus as RoomStatus) || { isOpen: false },
           hallOfFame: normalizeHall(data.hallOfFame as StoredHallOfFame | undefined),
-          equipment: Array.isArray(data.equipment) ? data.equipment as Equipment[] : [],
+          equipment: indexedEquipment,
           equipmentRentals: Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [],
         };
         cloudState.current = JSON.stringify(next);
@@ -1689,18 +1696,24 @@ export default function Home() {
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(clubRef);
       const current = snapshot.exists() && Array.isArray(snapshot.data().equipment)
-        ? snapshot.data().equipment as Equipment[]
+        ? assignBowIndexes(snapshot.data().equipment as Equipment[])
         : [];
       if (drafts.some((candidate) => candidate.kind === "arrow" && current.some((item) => item.kind === "arrow" && item.lengthWeight === candidate.lengthWeight && item.index === candidate.index && item.indexNumber === candidate.indexNumber))) {
         throw new Error("같은 인덱스 넘버의 화살이 이미 등록되어 있어요.");
       }
-      const items = drafts.map((candidate) => ({
-        ...candidate,
-        id: makeEquipmentId(),
-        manualAvailable: true,
-        status: "available",
-        createdAt: new Date().toISOString(),
-      }) as Equipment);
+      const items: Equipment[] = [];
+      drafts.forEach((candidate) => {
+        if (candidate.kind === "bow") {
+          const key = bowGroupKey(candidate);
+          const sameGroup = [...current, ...items].filter(
+            (item) => item.kind === "bow" && bowGroupKey(item) === key,
+          );
+          const indexNumber = Math.max(0, ...sameGroup.map((item) => item.kind === "bow" ? item.indexNumber || 0 : 0)) + 1;
+          items.push({ ...candidate, id: makeEquipmentId(), manualAvailable: true, status: "available", createdAt: new Date().toISOString(), indexNumber });
+        } else {
+          items.push({ ...candidate, id: makeEquipmentId(), manualAvailable: true, status: "available", createdAt: new Date().toISOString() });
+        }
+      });
       transaction.set(clubRef, { equipment: [...current, ...items] }, { merge: true });
     });
   };
@@ -3348,7 +3361,9 @@ function Calendar({
   onAdd: () => void;
   onEditEvent: (event: CalendarEvent) => void;
 }) {
-  const [month, setMonth] = useState(new Date(2026, 8, 1));
+  const now = new Date();
+  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const [month, setMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
   const year = month.getFullYear();
   const monthNumber = month.getMonth();
   const firstDay = new Date(year, monthNumber, 1).getDay();
@@ -3367,7 +3382,10 @@ function Calendar({
           <button onClick={() => setMonth(new Date(year, monthNumber - 1, 1))}>
             ‹
           </button>
-          <button onClick={() => setMonth(new Date(2026, 8, 1))}>오늘</button>
+          <button onClick={() => {
+            const today = new Date();
+            setMonth(new Date(today.getFullYear(), today.getMonth(), 1));
+          }}>오늘</button>
           <button onClick={() => setMonth(new Date(year, monthNumber + 1, 1))}>
             ›
           </button>
@@ -3390,7 +3408,7 @@ function Calendar({
             const dayPractices = practices.filter((x) => x.date === key);
             const dayEvents = events.filter((x) => x.date === key);
             return (
-              <div key={i} className={key === "2026-09-11" ? "today" : ""}>
+              <div key={i} className={key === todayKey ? "today" : ""}>
                 {d > 0 && d <= lastDate && (
                   <>
                     <span>{d}</span>
@@ -3612,6 +3630,7 @@ function MemberForm({
   onSave: (member: Member) => void;
 }) {
   const [joinTerm, setJoinTerm] = useState(initial?.joinTerm || currentTerm);
+  const [practicePermission, setPracticePermission] = useState(Boolean(initial?.practicePermission));
   const grade = /^\d{2}-[12]$/.test(joinTerm)
     ? gradeFor(joinTerm, currentTerm)
     : "예비신사";
@@ -3633,7 +3652,7 @@ function MemberForm({
             role: initial?.role || "회원",
             position: initial?.position || "",
             team: initial?.team || "",
-            practicePermission: initial?.practicePermission,
+            practicePermission: grade === "예비신사" ? practicePermission : undefined,
           });
         }}
       >
@@ -3685,6 +3704,19 @@ function MemberForm({
           <b>{grade}</b>
           <small>현재 학기 {currentTerm} 기준</small>
         </div>
+        {initial && grade === "예비신사" && (
+          <label className="practice-permission-toggle">
+            <input
+              type="checkbox"
+              checked={practicePermission}
+              onChange={(event) => setPracticePermission(event.target.checked)}
+            />
+            <span>
+              <b>습사 일정 권한 허용</b>
+              <small>이 예비신사가 습사 일정을 추가하고 참가 신청할 수 있어요.</small>
+            </span>
+          </label>
+        )}
         <div className="modal-actions">
           <button type="button" onClick={onClose}>
             취소
