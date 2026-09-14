@@ -2809,6 +2809,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .equipment-status.rented, .equipment-status.lost, .equipment-status.damaged { background: #fff0eb; color: #a95642; }
 .equipment-modal-actions { display: grid; gap: 7px; margin-top: 17px; }
 .equipment-modal-actions button { min-height: 40px; border: 1px solid #cce3ef; border-radius: 9px; background: #edf8fd; color: #1a719d; font-size: 11px; font-weight: 850; }
+.equipment-modal-actions button.danger { border-color: #efcfc7; background: #fff3f0; color: #b14d39; }
 .modal-close { position: absolute; top: 13px; right: 13px; width: 30px; height: 30px; border: 0; border-radius: 50%; background: #edf5f8; color: #56717f; }
 .hall-save-image { width: 100%; min-height: 44px; margin-top: 13px; border: 1px solid #bcdff0; border-radius: 12px; background: #eaf7fd; color: #1477ad; font-size: 12px; font-weight: 900; }
 @media (max-width: 380px) {

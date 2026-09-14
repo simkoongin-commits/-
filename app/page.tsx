@@ -1203,6 +1203,7 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
+  const initializedMemberViewFor = useRef("");
   const appHistoryInitialized = useRef(false);
   const applyingHistory = useRef(false);
   useEffect(() => {
@@ -1400,8 +1401,11 @@ export default function Home() {
         setEquipment(next.equipment);
         setEquipmentRentals(next.equipmentRentals);
         setSession(member);
-        setView("cards");
-        setTopTab("member");
+        if (initializedMemberViewFor.current !== authUser.uid) {
+          initializedMemberViewFor.current = authUser.uid;
+          setView("cards");
+          setTopTab("member");
+        }
         setReady(true);
       },
       () => {
@@ -1784,6 +1788,24 @@ export default function Home() {
       const target = currentRentals.find((item) => item.id === rentalId);
       if (!target || target.status !== "returned") throw new Error("반납 완료된 기록만 삭제할 수 있어요.");
       transaction.set(clubRef, { equipmentRentals: currentRentals.filter((item) => item.id !== rentalId) }, { merge: true });
+    });
+  };
+  const deleteEquipment = async (equipmentId: string) => {
+    if (!canManageEquipment) throw new Error("관리자 또는 장비팀만 장비를 삭제할 수 있어요.");
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      if (!snapshot.exists()) throw new Error("장비 데이터를 불러오지 못했어요.");
+      const data = snapshot.data();
+      const current = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
+      const currentRentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
+      const target = current.find((item) => item.id === equipmentId);
+      if (!target) throw new Error("이미 삭제된 장비예요.");
+      if (target.status !== "available") throw new Error("대여·분실·손상 상태를 먼저 해제해주세요.");
+      if (currentRentals.some((rental) => rental.itemIds.includes(equipmentId))) {
+        throw new Error("대여 기록에 연결된 장비예요. 관련 대여 기록을 먼저 삭제해주세요.");
+      }
+      transaction.set(clubRef, { equipment: current.filter((item) => item.id !== equipmentId) }, { merge: true });
     });
   };
   const saveEducationSchedules = (next: EducationSchedule[]) => {
@@ -2513,6 +2535,7 @@ export default function Home() {
           onAddRentalNotes={addEquipmentRentalNotes}
           onReturnRental={returnEquipmentRental}
           onRestoreItem={restoreEquipmentItem}
+          onDeleteEquipment={deleteEquipment}
           onDeleteRental={deleteEquipmentRental}
         />
       )}
