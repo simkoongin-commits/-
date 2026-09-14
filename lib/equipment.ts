@@ -16,6 +16,7 @@ export type BowEquipment = EquipmentBase & {
   pound: string;
   length: string;
   side: "좌궁" | "우궁";
+  indexNumber?: number;
 };
 
 export type ArrowEquipment = EquipmentBase & {
@@ -49,9 +50,42 @@ export type EquipmentRental = {
   completedAt?: string;
 };
 
+export const bowGroupKey = (item: Pick<BowEquipment, "pound" | "length" | "side">) =>
+  [item.pound.trim().toLowerCase(), item.length.trim().toLowerCase(), item.side].join("|");
+
+export const assignBowIndexes = (items: Equipment[]) => {
+  const indexedBows = new Map<string, BowEquipment>();
+  const groups = new Map<string, BowEquipment[]>();
+  items.forEach((item) => {
+    if (item.kind !== "bow") return;
+    const key = bowGroupKey(item);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(item);
+  });
+  groups.forEach((bows) => {
+    const used = new Set<number>();
+    bows
+      .slice()
+      .sort((a, b) =>
+        (a.indexNumber || Number.MAX_SAFE_INTEGER) - (b.indexNumber || Number.MAX_SAFE_INTEGER) ||
+        a.createdAt.localeCompare(b.createdAt) ||
+        a.id.localeCompare(b.id),
+      )
+      .forEach((bow) => {
+        let indexNumber = Number.isInteger(bow.indexNumber) && Number(bow.indexNumber) > 0
+          ? Number(bow.indexNumber)
+          : 1;
+        while (used.has(indexNumber)) indexNumber += 1;
+        used.add(indexNumber);
+        indexedBows.set(bow.id, { ...bow, indexNumber });
+      });
+  });
+  return items.map((item) => item.kind === "bow" ? indexedBows.get(item.id) || item : item);
+};
+
 export const equipmentName = (item: Equipment) =>
   item.kind === "bow"
-    ? `${item.pound}lb · ${item.length} · ${item.side}`
+    ? `${item.indexNumber ? `#${item.indexNumber} · ` : ""}${item.pound}lb · ${item.length} · ${item.side}`
     : `${item.lengthWeight} · ${item.index} · ${item.indexNumber}`;
 
 export const equipmentUnavailableReason = (item: Equipment) => {

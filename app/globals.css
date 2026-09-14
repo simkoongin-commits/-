@@ -1862,9 +1862,8 @@ body {
 .team-members { display: flex; flex-wrap: wrap; gap: 8px; padding: 13px 14px; }
 .team-members > span { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 6px; border-radius: 999px; background: #eaf6fb; color: #285f7b; font-size: 11px; }
 .team-members > span i { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #bfe6f7; color: #116f9f; font-style: normal; font-weight: 900; }
-.team-members > span.team-leader { padding-top: 9px; background: #fff7d8; color: #755d16; }
-.team-members > span.team-leader i { position: relative; background: #ffe58b; color: #795a00; }
-.team-members > span.team-leader i::before { position: absolute; top: -15px; left: 50%; color: #e5a900; content: "♛"; font-size: 16px; line-height: 1; transform: translateX(-50%); }
+.team-members > span.team-leader { background: #fff7d8; color: #755d16; }
+.team-members > span.team-leader i { background: #ffe58b; color: #795a00; }
 .team-members > span em { color: #ad8300; font-size: 9px; font-style: normal; font-weight: 900; }
 .team-members > span button { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: #fff; color: #8298a3; }
 .team-members > p { margin: 4px 0; color: #8a9da7; font-size: 11px; }
@@ -2754,6 +2753,14 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .equipment-toolbar button { min-width: 62px; padding: 0 14px; border: 1px solid #d4e8f3; }
 .equipment-toolbar .equipment-add { min-width: 40px; width: 40px; padding: 0; background: #1884c2; border-color: #1884c2; color: #fff; font-size: 22px; }
 .equipment-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.bow-inventory { display: grid; gap: 10px; }
+.equipment-count { display: flex; align-items: center; justify-content: space-between; padding: 11px 14px; border: 1px solid #cfe6f2; border-radius: 13px; background: #eef8fd; color: #537b91; font-size: 12px; font-weight: 800; }
+.equipment-count strong { color: #147db8; font-size: 15px; }
+.bow-tree { display: grid; gap: 10px; }
+.bow-tree details { overflow: hidden; border: 1px solid #d5e8f2; border-radius: 14px; background: #fff; }
+.bow-tree summary { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px; color: #1d607f; cursor: pointer; font-size: 12px; font-weight: 900; }
+.bow-tree summary small { color: #718f9f; font-size: 10px; }
+.bow-tree .equipment-grid { padding: 0 10px 10px; }
 .equipment-card { min-height: 112px; padding: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 7px; border: 1px solid #cae6f5; border-radius: 15px; background: #fff; color: #174761; text-align: left; box-shadow: 0 7px 17px #277ca40d; }
 .equipment-card > span { padding: 4px 7px; border-radius: 7px; background: #e3f4fd; color: #1478b1; font-size: 10px; font-weight: 900; }
 .equipment-card b { line-height: 1.4; font-size: 13px; }
@@ -2771,6 +2778,11 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .arrow-summary-actions { display: flex; align-items: center; gap: 6px; }
 .arrow-summary-actions > button { width: 25px; height: 25px; border: 0; border-radius: 7px; background: #1784c2; color: #fff; font-size: 16px; line-height: 1; }
 .arrow-tree .equipment-grid { padding: 0 9px 10px; }
+.practice-permission-toggle { display: flex !important; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid #cfe5f0; border-radius: 12px; background: #eff8fc; cursor: pointer; }
+.practice-permission-toggle input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: #1884c2; }
+.practice-permission-toggle span { display: grid; gap: 3px; }
+.practice-permission-toggle b { color: #215f80; font-size: 12px; }
+.practice-permission-toggle small { color: #718d9d; font-size: 10px; line-height: 1.4; }
 .rental-form-card { padding: 17px; border: 1px solid #cde5f2; border-radius: 17px; background: #fff; box-shadow: 0 9px 24px #247eab10; }
 .rental-choice-groups { display: grid; gap: 15px; margin-top: 16px; }
 .rental-choice-groups h4 { margin: 0 0 8px; color: #1c6188; font-size: 12px; }
