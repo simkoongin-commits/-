@@ -23,6 +23,7 @@ import {
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { toPng } from "html-to-image";
+import sanitizeHtml from "sanitize-html";
 import { auth, db, storage } from "@/lib/firebase";
 import EquipmentManagement, { type EquipmentDraft } from "@/app/components/EquipmentManagement";
 import {
@@ -46,6 +47,21 @@ type Member = {
   position?: "대표" | "부대표" | "교육팀장" | "장비팀장" | "홍보팀장" | "";
   team?: TeamName | "";
   practicePermission?: boolean;
+};
+const teamForPosition = (position?: Member["position"]): TeamName | "" => {
+  if (position === "대표" || position === "부대표") return "대표팀";
+  if (position === "교육팀장") return "교육팀";
+  if (position === "장비팀장") return "장비팀";
+  if (position === "홍보팀장") return "홍보팀";
+  return "";
+};
+const memberTeam = (member: Member): TeamName | "" =>
+  teamForPosition(member.position) || member.team || "";
+const leaderPositionForTeam: Partial<Record<TeamName, Member["position"]>> = {
+  대표팀: "대표",
+  교육팀: "교육팀장",
+  장비팀: "장비팀장",
+  홍보팀: "홍보팀장",
 };
 type Practice = {
   id: number;
@@ -74,6 +90,8 @@ type PublicPost = {
   date: string;
   cover?: string;
   media?: string[];
+  mediaTypes?: string[];
+  bodyFormat?: "html";
 };
 type PublicQuestion = {
   id: string;
@@ -363,6 +381,11 @@ function announcement(p: Practice, formats: CopyFormats) {
 }
 
 const authEmail = (studentId: string) => `${studentId.trim()}@simgunghoe.local`;
+const sanitizePostBody = (body: string) => sanitizeHtml(body, {
+  allowedTags: ["p", "br", "strong", "b", "ul", "li", "span"],
+  allowedAttributes: { span: ["style"] },
+  allowedStyles: { span: { color: [/^#[0-9a-f]{6}$/i, /^rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$/i] } },
+});
 
 function LoginScreen({
   error,
@@ -556,7 +579,7 @@ function PublicPortal({
   onSavePost?: (post: PublicPost, files: File[]) => Promise<void>;
   onDeletePost?: (id: string) => void;
   onAnswer?: (question: PublicQuestion, answer: string) => void;
-  onDiscard?: (id: string) => void;
+  onDiscard?: (question: PublicQuestion) => void;
   onSaveScenes?: (scenes: PromoScene[]) => void;
 }) {
   const [tab, setTab] = useState<PromoTab>(initialTab);
@@ -575,6 +598,8 @@ function PublicPortal({
   const [postEditor, setPostEditor] = useState(false);
   const [postDraft, setPostDraft] = useState({ title: "", body: "" });
   const [postFiles, setPostFiles] = useState<File[]>([]);
+  const [postSlides, setPostSlides] = useState<Record<string, number>>({});
+  const richPostEditor = useRef<HTMLDivElement>(null);
   const [answerTarget, setAnswerTarget] = useState<PublicQuestion | null>(null);
   const [answer, setAnswer] = useState("");
   const canManagePromotion =
@@ -593,6 +618,10 @@ function PublicPortal({
   const navigateTab = (nextTab: PromoTab) => {
     setTab(nextTab);
     onTabChange?.(nextTab);
+  };
+  const formatPostBody = (command: "bold" | "insertUnorderedList" | "foreColor", value?: string) => {
+    richPostEditor.current?.focus();
+    document.execCommand(command, false, value);
   };
   return (
     <main className="public-shell">
@@ -792,7 +821,7 @@ function PublicPortal({
                     </button>
                     <button
                       className="danger"
-                      onClick={() => onDiscard?.(item.id)}
+                      onClick={() => onDiscard?.(item)}
                     >
                       폐기
                     </button>
@@ -811,6 +840,7 @@ function PublicPortal({
                   <small>
                     {item.answeredBy || "심궁회"} · {item.createdAt}
                   </small>
+                  {session?.role === "관리자" && <div className="qa-actions"><button onClick={() => { setAnswerTarget(item); setAnswer(item.answer || ""); }}>답변 수정</button><button className="danger" onClick={() => { if (window.confirm("이 공개 Q&A를 삭제할까요?")) onDiscard?.(item); }}>삭제</button></div>}
                 </article>
               ))
             ) : (
@@ -833,39 +863,22 @@ function PublicPortal({
             </h1>
           </div>
           <div className="public-posts">
-            {shownPosts.map((post, index) => (
+            {shownPosts.map((post, index) => {
+              const media = post.media?.length ? post.media : post.cover ? [post.cover] : [];
+              const activeSlide = Math.min(postSlides[post.id] || 0, Math.max(0, media.length - 1));
+              const activeMedia = media[activeSlide];
+              const isVideo = Boolean(post.mediaTypes?.[activeSlide]?.startsWith("video/") || activeMedia?.match(/\.(mp4|webm|mov)(\?|$)/i));
+              return (
               <article key={post.id} className={`public-post post-${index}`}>
-                <div
-                  className="post-cover"
-                  style={
-                    post.cover
-                      ? { backgroundImage: `url(${post.cover})` }
-                      : undefined
-                  }
-                >
-                  <span>{post.cover ? "" : "SIMKOONG"}</span>
+                <div className={`post-carousel ${media.length ? "has-media" : ""}`}>
+                  {/* 업로드 영상에는 별도의 자막 파일이 없을 수 있습니다. */}
+                  {activeMedia ? (isVideo ? <video className="post-slide-media" controls src={activeMedia} aria-label={`${post.title} 첨부 영상 ${activeSlide + 1}`}><track kind="captions" /></video> : <img className="post-slide-media" src={activeMedia} alt={`${post.title} 첨부 ${activeSlide + 1}`} />) : <span>SIMKOONG</span>}
+                  {media.length > 1 && <><button className="post-slide-button previous" aria-label="이전 사진" onClick={() => setPostSlides((current) => ({ ...current, [post.id]: (activeSlide - 1 + media.length) % media.length }))}>‹</button><button className="post-slide-button next" aria-label="다음 사진" onClick={() => setPostSlides((current) => ({ ...current, [post.id]: (activeSlide + 1) % media.length }))}>›</button><div className="post-slide-dots">{media.map((_, slideIndex) => <i key={slideIndex} className={slideIndex === activeSlide ? "active" : ""} />)}</div></>}
                 </div>
                 <div>
                   <small>{post.date}</small>
                   <h2>{post.title}</h2>
-                  <p>{post.body}</p>
-                  {post.media?.map((url) =>
-                    url.match(/\.(mp4|webm|mov)(\?|$)/i) ? (
-                      <video
-                        key={url}
-                        className="post-media"
-                        controls
-                        src={url}
-                      />
-                    ) : (
-                      <img
-                        key={url}
-                        className="post-media"
-                        src={url}
-                        alt="게시물 첨부 이미지"
-                      />
-                    ),
-                  )}
+                  {post.bodyFormat === "html" ? <div className="post-rich-body" dangerouslySetInnerHTML={{ __html: sanitizePostBody(post.body) }} /> : <p>{post.body}</p>}
                   {canManagePromotion && (
                     <button
                       className="post-delete"
@@ -876,7 +889,7 @@ function PublicPortal({
                   )}
                 </div>
               </article>
-            ))}
+            );})}
           </div>
         </section>
       )}
@@ -996,11 +1009,16 @@ function PublicPortal({
             className="modal"
             onSubmit={async (e) => {
               e.preventDefault();
+              if (!richPostEditor.current?.innerText.trim()) {
+                window.alert("게시물 본문을 입력해주세요.");
+                return;
+              }
               await onSavePost?.(
                 {
                   id: String(Date.now()),
                   title: postDraft.title,
-                  body: postDraft.body,
+                  body: sanitizePostBody(richPostEditor.current?.innerHTML || ""),
+                  bodyFormat: "html",
                   date: new Date().toLocaleDateString("ko-KR"),
                 },
                 postFiles,
@@ -1008,6 +1026,7 @@ function PublicPortal({
               setPostEditor(false);
               navigateTab("posts");
               setPostDraft({ title: "", body: "" });
+              if (richPostEditor.current) richPostEditor.current.innerHTML = "";
               setPostFiles([]);
             }}
           >
@@ -1027,16 +1046,13 @@ function PublicPortal({
                 }
               />
             </label>
-            <label>
-              본문
-              <textarea
-                required
-                value={postDraft.body}
-                onChange={(e) =>
-                  setPostDraft({ ...postDraft, body: e.target.value })
-                }
-              />
-            </label>
+            <div className="post-editor-label">본문</div>
+            <div className="post-format-toolbar" aria-label="본문 서식">
+              <button type="button" onClick={() => formatPostBody("bold")}><b>B</b></button>
+              <button type="button" onClick={() => formatPostBody("insertUnorderedList")}>• 목록</button>
+              <label>글자색<input type="color" defaultValue="#245a76" onChange={(event) => formatPostBody("foreColor", event.target.value)} /></label>
+            </div>
+            <div ref={richPostEditor} className="post-rich-editor" contentEditable suppressContentEditableWarning data-placeholder="게시물 내용을 입력해주세요" />
             <label>
               사진·영상
               <input
@@ -1059,7 +1075,7 @@ function PublicPortal({
         <div className="modal-back">
           <section className="modal">
             <div className="modal-head">
-              <h2>Q&amp;A 답변</h2>
+              <h2>{answerTarget.status === "answered" ? "Q&A 답변 수정" : "Q&A 답변"}</h2>
               <button onClick={() => setAnswerTarget(null)}>×</button>
             </div>
             <p>
@@ -1083,7 +1099,7 @@ function PublicPortal({
                   setAnswerTarget(null);
                 }}
               >
-                공개 답변
+                {answerTarget.status === "answered" ? "수정 완료" : "공개 답변"}
               </button>
             </div>
           </section>
@@ -1636,6 +1652,34 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(""), 1900);
   };
+  const requestAdminAccountDeletion = async (studentId: string, orphanOnly = false) => {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("로그인이 필요해요.");
+    const response = await fetch(`/api/admin/members/${encodeURIComponent(studentId)}${orphanOnly ? "?orphanOnly=true" : ""}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) throw new Error(result.error || "계정을 삭제하지 못했어요.");
+  };
+  const requestQaChange = async (
+    question: PublicQuestion,
+    action: "answer" | "delete",
+    answer?: string,
+  ) => {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("로그인이 필요해요.");
+    const response = await fetch(`/api/admin/qa/${encodeURIComponent(question.id)}`, {
+      method: action === "answer" ? "PATCH" : "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(action === "answer" ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(action === "answer" ? { body: JSON.stringify({ answer }) } : {}),
+    });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) throw new Error(result.error || "Q&A를 변경하지 못했어요.");
+  };
   const canManageEquipment =
     session.role === "관리자" || session.team === "장비팀";
   const addEquipment = async (draft: EquipmentDraft | EquipmentDraft[]) => {
@@ -1941,6 +1985,7 @@ export default function Home() {
               ...post,
               cover: urls.find((_, i) => files[i]?.type.startsWith("image/")),
               media: urls,
+              mediaTypes: files.map((file) => file.type),
             };
             const next = [nextPost, ...publicPosts];
             setPublicPosts(next);
@@ -1962,25 +2007,14 @@ export default function Home() {
             notify("게시물을 삭제했어요");
           }}
           onAnswer={(question, answer) => {
-            const published = {
-              ...question,
-              status: "answered" as const,
-              answer,
-              answeredBy: session.position || session.name,
-            };
-            void setDoc(
-              doc(db, "public", "simgunghoe", "qa", question.id),
-              published,
-            );
-            void deleteDoc(
-              doc(db, "clubs", "simgunghoe", "questions", question.id),
-            );
-            notify("답변을 공개했어요");
+            void requestQaChange(question, "answer", answer)
+              .then(() => notify(question.status === "answered" ? "답변을 수정했어요" : "답변을 공개했어요"))
+              .catch((error) => notify(error instanceof Error ? error.message : "답변 저장에 실패했어요"));
           }}
-          onDiscard={(id) => {
-            void deleteDoc(doc(db, "public", "simgunghoe", "qa", id))
-              .then(() => notify("질문을 폐기했어요"))
-              .catch(() => notify("질문 폐기에 실패했어요. 다시 시도해주세요."));
+          onDiscard={(question) => {
+            void requestQaChange(question, "delete")
+              .then(() => notify(question.status === "answered" ? "공개 Q&A를 삭제했어요" : "질문을 폐기했어요"))
+              .catch((error) => notify(error instanceof Error ? error.message : "Q&A 삭제에 실패했어요"));
           }}
         />
       </>
@@ -2473,12 +2507,27 @@ export default function Home() {
           onTeamChange={(id, team) => {
             const target = clubMembers.find((member) => member.id === id);
             if (!target) return;
+            const positionTeam = teamForPosition(target.position);
+            if (positionTeam && team && team !== positionTeam) {
+              notify(`${target.position} 역할은 ${positionTeam} 소속으로 고정돼요`);
+              return;
+            }
             const updated = { ...target, team };
             setClubMembers((all) =>
               all.map((member) => (member.id === id ? updated : member)),
             );
             if (session.id === id) setSession(updated);
             notify(team ? `${target.name}님을 ${team}에 배정했어요` : `${target.name}님의 팀 배정을 해제했어요`);
+          }}
+          onCleanupAuth={async (studentId) => {
+            try {
+              await requestAdminAccountDeletion(studentId, true);
+              notify("남아 있던 가입 계정을 초기화했어요");
+              return true;
+            } catch (error) {
+              notify(error instanceof Error ? error.message : "가입 계정을 초기화하지 못했어요");
+              return false;
+            }
           }}
           onRoleChange={(id, role) => {
             const target = clubMembers.find((member) => member.id === id);
@@ -2529,20 +2578,14 @@ export default function Home() {
               !window.confirm(`${member.name} 회원의 계정 데이터를 삭제할까요?`)
             )
               return;
-            const remaining = clubMembers.filter(
-              (item) => item.id !== member.id,
-            );
-            void setDoc(
-              doc(db, "clubs", "simgunghoe"),
-              { members: remaining },
-              { merge: true },
-            )
+            const remaining = clubMembers.filter((item) => item.id !== member.id);
+            void requestAdminAccountDeletion(member.id)
               .then(() => {
                 setClubMembers(remaining);
-                notify("회원 계정 데이터를 삭제했어요");
+                notify("회원 정보와 가입 계정을 완전히 삭제했어요");
               })
-              .catch(() =>
-                notify("회원 삭제에 실패했어요. 다시 시도해주세요."),
+              .catch((error) =>
+                notify(error instanceof Error ? error.message : "회원 삭제에 실패했어요. 다시 시도해주세요."),
               );
           }}
         />
@@ -2603,9 +2646,11 @@ export default function Home() {
           onFormats={setCopyFormats}
           onClose={() => setProfileOpen(false)}
           onSave={(updated) => {
-            setSession(updated);
+            const positionTeam = teamForPosition(updated.position);
+            const normalized = positionTeam ? { ...updated, team: positionTeam } : updated;
+            setSession(normalized);
             setClubMembers((all) =>
-              all.map((m) => (m.id === updated.id ? updated : m)),
+              all.map((m) => (m.id === normalized.id ? normalized : m)),
             );
             notify("회원 정보를 저장했어요");
           }}
@@ -3377,6 +3422,7 @@ function Members({
   onAddMember,
   onUpdateMember,
   onTeamChange,
+  onCleanupAuth,
   onRoleChange,
   onDeleteMember,
 }: {
@@ -3387,6 +3433,7 @@ function Members({
   onAddMember: (member: Member) => boolean;
   onUpdateMember: (member: Member) => void;
   onTeamChange: (id: string, team: Member["team"]) => void;
+  onCleanupAuth: (studentId: string) => Promise<boolean>;
   onRoleChange: (id: string, role: Member["role"]) => void;
   onDeleteMember: (member: Member) => void;
 }) {
@@ -3394,6 +3441,8 @@ function Members({
   const [showAdd, setShowAdd] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [teamSelections, setTeamSelections] = useState<Partial<Record<TeamName, string>>>({});
+  const [cleanupStudentId, setCleanupStudentId] = useState("");
+  const [cleanupBusy, setCleanupBusy] = useState(false);
   const [termYear, termSemester] = currentTerm.split("-").map(Number);
   const moveTerm = (direction: 1 | -1) => {
     const nextSemester = termSemester + direction;
@@ -3487,25 +3536,31 @@ function Members({
           </div>
         ))}
       </div>
+      {session.role === "관리자" && <div className="orphan-account-cleanup"><div><b>삭제된 계정 다시 가입</b><small>회원 목록에서는 지웠지만 가입 계정이 남아 있는 학번을 초기화해요.</small></div><div><input inputMode="numeric" pattern="[0-9]+" value={cleanupStudentId} onChange={(event) => setCleanupStudentId(event.target.value.replace(/\D/g, ""))} placeholder="학번" /><button disabled={!cleanupStudentId || cleanupBusy} onClick={async () => { if (!window.confirm(`${cleanupStudentId} 학번의 남은 가입 계정을 초기화할까요?`)) return; setCleanupBusy(true); const success = await onCleanupAuth(cleanupStudentId); setCleanupBusy(false); if (success) setCleanupStudentId(""); }}>{cleanupBusy ? "처리 중" : "가입 정보 초기화"}</button></div></div>}
       </> : (
         <div className="team-role-list">
           {teamNames.map((team) => {
-            const assigned = members.filter((member) => member.team === team);
+            const leaderPosition = leaderPositionForTeam[team];
+            const assigned = members
+              .filter((member) => memberTeam(member) === team)
+              .sort((a, b) => Number(b.position === leaderPosition) - Number(a.position === leaderPosition));
+            const teamLeader = assigned.find((member) => member.position === leaderPosition);
             const selectedId = teamSelections[team] || "";
             return (
               <section className="team-role-card" key={team}>
                 <header>
-                  <div><b>{team}</b><small>{assigned.length}명</small></div>
+                  <div><b>{team}</b><small>{assigned.length}명{teamLeader ? ` · 팀장 ${teamLeader.name}` : ""}</small></div>
                   {session.role === "관리자" && (
                     <div className="team-assign-control">
                       <select value={selectedId} onChange={(event) => setTeamSelections((current) => ({ ...current, [team]: event.target.value }))} aria-label={`${team} 회원 선택`}>
                         <option value="">회원 선택</option>
-                        {members.filter((member) => member.team !== team).map((member) => <option key={member.id} value={member.id}>{member.name}{member.team ? ` · ${member.team}` : ""}</option>)}
+                        {members.filter((member) => memberTeam(member) !== team).map((member) => <option key={member.id} value={member.id}>{member.name}{memberTeam(member) ? ` · ${memberTeam(member)}` : ""}</option>)}
                       </select>
                       <button disabled={!selectedId} onClick={() => {
                         const member = members.find((item) => item.id === selectedId);
                         if (!member) return;
-                        if (member.team && !window.confirm(`${member.name}님을 ${member.team}에서 ${team}(으)로 이동할까요?`)) return;
+                        const currentTeam = memberTeam(member);
+                        if (currentTeam && !window.confirm(`${member.name}님을 ${currentTeam}에서 ${team}(으)로 이동할까요?`)) return;
                         onTeamChange(member.id, team);
                         setTeamSelections((current) => ({ ...current, [team]: "" }));
                       }}>추가</button>
@@ -3513,9 +3568,9 @@ function Members({
                   )}
                 </header>
                 <div className="team-members">
-                  {assigned.length ? assigned.map((member) => (
-                    <span key={member.id}><i>{member.name[0]}</i><b>{member.name}</b>{session.role === "관리자" && <button onClick={() => onTeamChange(member.id, "")} aria-label={`${member.name} 팀 해제`}>×</button>}</span>
-                  )) : <p>배정된 회원이 없어요.</p>}
+                  {assigned.length ? assigned.map((member) => { const isLeader = member.position === leaderPosition; return (
+                    <span key={member.id} className={isLeader ? "team-leader" : ""}><i>{member.name[0]}</i><b>{member.name}</b>{isLeader && <em>팀장</em>}{session.role === "관리자" && !isLeader && <button onClick={() => onTeamChange(member.id, "")} aria-label={`${member.name} 팀 해제`}>×</button>}</span>
+                  ); }) : <p>배정된 회원이 없어요.</p>}
                 </div>
               </section>
             );
