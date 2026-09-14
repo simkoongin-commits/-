@@ -2751,6 +2751,10 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .rental-table { width: max-content; min-width: 100%; border-collapse: collapse; color: #355d73; font-size: 13.5px; }
 .rental-table th, .rental-table td { min-width: 111px; padding: 13.5px; border-bottom: 1px solid #e1ebf0; text-align: left; vertical-align: top; }
 .rental-table th { background: #edf7fc; color: #28627f; white-space: nowrap; }
+.rental-table tbody tr.returned td { background: #e7edf0; color: #71828b; }
+.rental-table tbody tr.returned .rental-note-summary { background: #dce5e9; }
+.rental-table tbody tr.returned .rental-note-summary > b,
+.rental-table tbody tr.returned .rental-note-summary > small { color: #71828b; }
 .rental-table td:nth-child(3) { min-width: 196px; }
 .rental-table td span { display: block; margin-bottom: 4px; }
 .rental-note-summary { margin-bottom: 8px; padding: 6px; border-radius: 7px; background: #f5fafc; }
