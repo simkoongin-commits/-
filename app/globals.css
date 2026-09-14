@@ -2778,3 +2778,15 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
   .equipment-grid { grid-template-columns: 1fr; }
   .rental-form-head { align-items: flex-start; flex-direction: column; }
 }
+
+/* 로그인 회원용 홈 화면 설치 안내 */
+.install-prompt-backdrop { position: fixed; z-index: 160; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(16, 57, 82, .42); backdrop-filter: blur(5px); }
+.install-prompt-card { position: relative; width: min(360px, 100%); padding: 27px 22px 20px; border: 1px solid rgba(169, 220, 246, .9); border-radius: 22px; background: linear-gradient(155deg, #fff 0%, #edf9ff 100%); box-shadow: 0 22px 60px rgba(14, 66, 98, .28); color: #174f70; text-align: center; }
+.install-prompt-card > img { width: 66px; height: 66px; border-radius: 18px; box-shadow: 0 8px 22px rgba(23, 126, 181, .2); }
+.install-prompt-card h2 { margin: 16px 0 8px; color: #123f5d; font-size: 20px; letter-spacing: -.7px; }
+.install-prompt-card p { margin: 0; color: #63839a; font-size: 13px; line-height: 1.55; }
+.install-prompt-card small { display: block; margin-top: 11px; padding: 10px; border-radius: 10px; background: #e2f3fb; color: #39728f; font-size: 11px; line-height: 1.5; }
+.install-prompt-close { position: absolute; top: 12px; right: 12px; width: 31px; height: 31px; padding: 0; border: 0; border-radius: 50%; background: #e9f4f9; color: #5c7b8c; font-size: 21px; line-height: 1; }
+.install-prompt-primary, .install-prompt-today { width: 100%; min-height: 44px; border-radius: 12px; font-weight: 900; }
+.install-prompt-primary { margin-top: 18px; border: 0; background: #1684c3; color: #fff; box-shadow: 0 8px 18px rgba(22, 132, 195, .25); font-size: 14px; }
+.install-prompt-today { margin-top: 8px; border: 1px solid #c8e3ef; background: #fff; color: #527b91; font-size: 12px; }
