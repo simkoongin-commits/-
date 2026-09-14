@@ -61,6 +61,7 @@ export default function EquipmentManagement({
   session,
   onAddEquipment,
   onToggleAvailability,
+  onUpdateEquipmentNote,
   onCreateRental,
   onAddRentalNotes,
   onReturnRental,
@@ -72,6 +73,7 @@ export default function EquipmentManagement({
   session: Session;
   onAddEquipment: (draft: EquipmentDraft) => Promise<void>;
   onToggleAvailability: (id: string) => Promise<void>;
+  onUpdateEquipmentNote: (id: string, note: string) => Promise<void>;
   onCreateRental: (itemIds: string[], loanDate: string) => Promise<void>;
   onAddRentalNotes: (rentalId: string, notes: RentalNote[]) => Promise<void>;
   onReturnRental: (rentalId: string) => Promise<void>;
@@ -83,6 +85,7 @@ export default function EquipmentManagement({
   const [adding, setAdding] = useState<"bow" | "arrow" | null>(null);
   const [arrowPreset, setArrowPreset] = useState<{ lengthWeight?: string; index?: string }>({});
   const [selectedItem, setSelectedItem] = useState<Equipment | null>(null);
+  const [equipmentNote, setEquipmentNote] = useState("");
   const [loanDate, setLoanDate] = useState(todayValue);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [noteRental, setNoteRental] = useState<string | null>(null);
@@ -126,6 +129,10 @@ export default function EquipmentManagement({
     setSelectedIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id]);
   };
   const addNote = (type: RentalNoteType) => setRentalNotes((current) => [...current, { id: makeEquipmentId(), type, itemIds: [] }]);
+  const openEquipment = (item: Equipment) => {
+    setSelectedItem(item);
+    setEquipmentNote(item.note || "");
+  };
 
   return (
     <section className="content equipment-page">
@@ -141,9 +148,9 @@ export default function EquipmentManagement({
           {session.role === "관리자" && <button className="equipment-add" onClick={() => { setArrowPreset({}); setAdding(inventoryTab); }}>+</button>}
         </div>
         {inventoryTab === "bow" ? <div className="equipment-grid">
-          {bows.length ? bows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />) : <Empty text="등록된 활이 없어요." />}
+          {bows.length ? bows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />) : <Empty text="등록된 활이 없어요." />}
         </div> : <div className="arrow-tree">
-          {arrowGroups.size ? [...arrowGroups].map(([group, indexes]) => <details key={group} open><summary><span>{group}</span><span className="arrow-summary-actions"><small>{[...indexes.values()].flat().length}개</small>{session.role === "관리자" && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group }); setAdding("arrow"); }}>+</button>}</span></summary><div>{[...indexes].map(([index, items]) => <details key={index}><summary><span>{index}</span><span className="arrow-summary-actions"><small>{items.length}개</small>{session.role === "관리자" && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group, index }); setAdding("arrow"); }}>+</button>}</span></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => setSelectedItem(item)} />)}</div></details>)}</div></details>) : <Empty text="등록된 화살이 없어요." />}
+          {arrowGroups.size ? [...arrowGroups].map(([group, indexes]) => <details key={group} open><summary><span>{group}</span><span className="arrow-summary-actions"><small>{[...indexes.values()].flat().length}개</small>{session.role === "관리자" && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group }); setAdding("arrow"); }}>+</button>}</span></summary><div>{[...indexes].map(([index, items]) => <details key={index}><summary><span>{index}</span><span className="arrow-summary-actions"><small>{items.length}개</small>{session.role === "관리자" && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group, index }); setAdding("arrow"); }}>+</button>}</span></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>)}</div></details>) : <Empty text="등록된 화살이 없어요." />}
         </div>}
       </> : <>
         <div className="rental-form-card">
@@ -164,7 +171,7 @@ export default function EquipmentManagement({
       </>}
 
       {adding && <EquipmentForm kind={adding} arrows={arrows} preset={arrowPreset} busy={busy} onClose={() => setAdding(null)} onSave={(draft) => void run(async () => { await onAddEquipment(draft); setAdding(null); setArrowPreset({}); }, "장비를 등록했어요")} />}
-      {selectedItem && <div className="equipment-modal-back" onClick={() => setSelectedItem(null)}><div className="equipment-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setSelectedItem(null)}>×</button><span className={`equipment-status ${selectedItem.status}`}>{equipmentUnavailableReason(selectedItem) || "대여 가능"}</span><h3>{equipmentName(selectedItem)}</h3>{selectedItem.holderName && <p>대여: {selectedItem.holderName}</p>}{selectedItem.note && <p>{selectedItem.note}</p>}{session.role === "관리자" && <div className="equipment-modal-actions"><button onClick={() => void run(async () => { await onToggleAvailability(selectedItem.id); setSelectedItem(null); }, "대여 가능 설정을 변경했어요")}>{selectedItem.manualAvailable ? "대여 불가능으로 설정" : "대여 가능으로 설정"}</button>{selectedItem.status === "lost" && <button onClick={() => { if (window.confirm("이 장비의 분실 상태를 해제하시겠어요?")) void run(async () => { await onRestoreItem(selectedItem.id, "recover"); setSelectedItem(null); }, "분실물을 회수했어요"); }}>분실물 회수</button>}{selectedItem.status === "damaged" && <button onClick={() => { if (window.confirm("이 장비를 수리 완료 처리하시겠어요?")) void run(async () => { await onRestoreItem(selectedItem.id, "repair"); setSelectedItem(null); }, "수리 완료했어요"); }}>수리 완료</button>}{selectedItem.status === "rented" && selectedItem.activeRentalId && <button onClick={() => { if (window.confirm("이 장비가 포함된 대여를 반납 완료 처리하시겠어요?")) void run(async () => { await onReturnRental(selectedItem.activeRentalId!); setSelectedItem(null); }, "반납 완료했어요"); }}>반납 완료</button>}</div>}</div></div>}
+      {selectedItem && <div className="equipment-modal-back" onClick={() => setSelectedItem(null)}><div className="equipment-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setSelectedItem(null)}>×</button><span className={`equipment-status ${selectedItem.status}`}>{equipmentUnavailableReason(selectedItem) || "대여 가능"}</span><h3>{equipmentName(selectedItem)}</h3>{selectedItem.holderName && <p>대여: {selectedItem.holderName}</p>}{session.role === "관리자" ? <label>장비 비고<textarea value={equipmentNote} onChange={(event) => setEquipmentNote(event.target.value)} placeholder="이 장비에 대한 비고를 입력해주세요" /></label> : selectedItem.note && <p>{selectedItem.note}</p>}{session.role === "관리자" && <div className="equipment-modal-actions"><button onClick={() => void run(async () => { await onUpdateEquipmentNote(selectedItem.id, equipmentNote); setSelectedItem(null); }, "장비 비고를 저장했어요")}>비고 저장</button><button onClick={() => void run(async () => { await onToggleAvailability(selectedItem.id); setSelectedItem(null); }, "대여 가능 설정을 변경했어요")}>{selectedItem.manualAvailable ? "대여 불가능으로 설정" : "대여 가능으로 설정"}</button>{selectedItem.status === "lost" && <button onClick={() => { if (window.confirm("이 장비의 분실 상태를 해제하시겠어요?")) void run(async () => { await onRestoreItem(selectedItem.id, "recover"); setSelectedItem(null); }, "분실물을 회수했어요"); }}>분실물 회수</button>}{selectedItem.status === "damaged" && <button onClick={() => { if (window.confirm("이 장비를 수리 완료 처리하시겠어요?")) void run(async () => { await onRestoreItem(selectedItem.id, "repair"); setSelectedItem(null); }, "수리 완료했어요"); }}>수리 완료</button>}{selectedItem.status === "rented" && selectedItem.activeRentalId && <button onClick={() => { if (window.confirm("이 장비가 포함된 대여를 반납 완료 처리하시겠어요?")) void run(async () => { await onReturnRental(selectedItem.activeRentalId!); setSelectedItem(null); }, "반납 완료했어요"); }}>반납 완료</button>}</div>}</div></div>}
       {noteRental && <div className="equipment-modal-back"><div className="equipment-modal note-modal"><button className="modal-close" onClick={() => setNoteRental(null)}>×</button><h3>비고 추가</h3><NoteEditor notes={rentalNotes} setNotes={setRentalNotes} availableIds={rentals.find((item) => item.id === noteRental)?.itemIds || []} equipment={equipment} onAdd={addNote} /><button className="primary" disabled={busy || rentalNotes.length === 0} onClick={() => void run(async () => { await onAddRentalNotes(noteRental, rentalNotes); setNoteRental(null); setRentalNotes([]); }, "비고를 추가했어요")}>저장</button></div></div>}
       {message && <div className="toast">{message}</div>}
     </section>
