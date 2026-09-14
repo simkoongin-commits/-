@@ -1843,6 +1843,27 @@ body {
   font-weight: 800;
   vertical-align: middle;
 }
+.member-section-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 14px; padding: 5px; border-radius: 14px; background: #e8f4fb; }
+.member-section-tabs button { min-height: 40px; border: 0; border-radius: 10px; background: transparent; color: #68869a; font-size: 13px; font-weight: 850; }
+.member-section-tabs button.active { background: #fff; color: #1479b3; box-shadow: 0 4px 12px #317da51a; }
+.team-role-list { display: grid; gap: 12px; }
+.team-role-card { overflow: hidden; border: 1px solid #d4e7f1; border-radius: 15px; background: #fff; }
+.team-role-card > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; background: #f2f9fc; }
+.team-role-card > header > div:first-child { display: flex; align-items: baseline; gap: 7px; color: #205c7d; }
+.team-role-card > header small { color: #7893a3; font-size: 10px; }
+.team-assign-control { display: flex; gap: 6px; }
+.team-assign-control select { min-width: 122px; max-width: 175px; padding: 7px; border: 1px solid #cfe2ec; border-radius: 8px; background: #fff; color: #426b81; font-size: 11px; }
+.team-assign-control button { padding: 7px 10px; border: 0; border-radius: 8px; background: #1884c2; color: #fff; font-size: 11px; font-weight: 850; }
+.team-assign-control button:disabled { opacity: .4; }
+.team-members { display: flex; flex-wrap: wrap; gap: 8px; padding: 13px 14px; }
+.team-members > span { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 6px; border-radius: 999px; background: #eaf6fb; color: #285f7b; font-size: 11px; }
+.team-members > span i { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: #bfe6f7; color: #116f9f; font-style: normal; font-weight: 900; }
+.team-members > span button { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: #fff; color: #8298a3; }
+.team-members > p { margin: 4px 0; color: #8a9da7; font-size: 11px; }
+@media (max-width: 520px) {
+  .team-role-card > header { align-items: stretch; flex-direction: column; }
+  .team-assign-control select { min-width: 0; flex: 1; max-width: none; }
+}
 .toast {
   background: #15577f;
 }
@@ -2326,6 +2347,8 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .mentor-card > div b { color: #1b5576; font-size: 16px; }
 .mentor-card > div span { padding: 4px 7px; border-radius: 999px; background: #e9f7f0; color: #218355; font-size: 11px; font-weight: 800; }
 .mentor-card p { margin: 10px 0 6px; color: #6a8799; font-size: 12px; }
+.mentor-card .mentor-detail { display: grid; grid-template-columns: 64px 1fr; gap: 8px; white-space: pre-wrap; line-height: 1.5; }
+.mentor-card .mentor-detail b { color: #376b86; }
 .mentor-card small { display: block; margin-bottom: 13px; color: #2b6788; font-weight: 800; }
 .mentor-card button { min-height: 37px; width: 100%; font-size: 12px; }
 .mentor-owner-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
@@ -2334,7 +2357,8 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .my-mentor { margin: 14px 0 0; padding: 11px 13px; border-radius: 10px; background: #e8f6ff; color: #256e99; font-size: 13px; font-weight: 800; }
 .education-modal { width: min(430px, calc(100vw - 30px)); }
 .education-modal label { display: block; margin: 15px 0; color: #2c5b75; font-size: 12px; font-weight: 800; }
-.education-modal input, .education-modal select { width: 100%; min-height: 44px; margin-top: 7px; padding: 10px; border: 1px solid #cfe2ed; border-radius: 10px; background: #fff; color: #214f69; }
+.education-modal input, .education-modal select, .education-modal textarea { width: 100%; min-height: 44px; margin-top: 7px; padding: 10px; border: 1px solid #cfe2ed; border-radius: 10px; background: #fff; color: #214f69; }
+.education-modal textarea { min-height: 82px; resize: vertical; }
 .education-modal .primary { width: 100%; margin-top: 8px; }
 .form-hint { margin: 5px 0 17px; color: #738ea0; font-size: 12px; line-height: 1.5; }
 .schedule-modal-back { width: 100%; left: 0; right: 0; transform: none; overflow: visible; }
@@ -2719,6 +2743,9 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .rental-arrow-tree details details { margin: 7px; background: #fff; }
 .rental-arrow-tree summary { padding: 10px 11px; display: flex; align-items: center; justify-content: space-between; color: #2d6e91; cursor: pointer; font-size: 11px; font-weight: 850; }
 .rental-arrow-tree summary small { padding: 3px 6px; border-radius: 999px; background: #e7f4fb; color: #7393a5; font-size: 9px; }
+.rental-group-actions { display: flex; align-items: center; gap: 6px; }
+.rental-group-actions button { padding: 5px 7px; border: 1px solid #bcddec; border-radius: 7px; background: #eaf7fd; color: #1678aa; font-size: 9px; font-weight: 850; }
+.rental-group-actions button:disabled { opacity: .4; }
 .rental-arrow-tree .rental-equipment-list { padding: 0 7px 7px; }
 .rental-form-head { display: flex; justify-content: space-between; align-items: end; gap: 12px; }
 .rental-form-head b, .rental-form-head small { display: block; }
@@ -2772,6 +2799,12 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .equipment-modal > label input, .equipment-modal > label select, .equipment-modal > label textarea { width: 100%; min-height: 42px; margin-top: 6px; padding: 9px; border: 1px solid #d5e6ef; border-radius: 9px; background: #fff; }
 .equipment-modal > label textarea { min-height: 70px; resize: vertical; }
 .equipment-modal > .primary { width: 100%; margin-top: 16px; }
+.index-number-picker { margin: 13px 0 0; padding: 0; border: 0; }
+.index-number-picker legend { margin-bottom: 7px; color: #55758a; font-size: 11px; font-weight: 800; }
+.index-number-picker > div { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.index-number-picker label { min-height: 42px; display: grid; place-items: center; border: 1px solid #d2e5ee; border-radius: 9px; background: #fff; color: #50758a; cursor: pointer; font-size: 12px; font-weight: 850; }
+.index-number-picker label.selected { border-color: #4fb2df; background: #e6f6fd; color: #117aae; box-shadow: inset 0 0 0 1px #9bd8ee; }
+.index-number-picker input { position: absolute; opacity: 0; pointer-events: none; }
 .equipment-status { display: inline-block; margin-bottom: 10px; padding: 5px 8px; border-radius: 999px; background: #e4f6ea; color: #31814d; font-size: 10px; font-weight: 900; }
 .equipment-status.rented, .equipment-status.lost, .equipment-status.damaged { background: #fff0eb; color: #a95642; }
 .equipment-modal-actions { display: grid; gap: 7px; margin-top: 17px; }

@@ -35,6 +35,8 @@ import {
   type RentalNote,
 } from "@/lib/equipment";
 
+type TeamName = "대표팀" | "교육팀" | "장비팀" | "홍보팀" | "지원팀";
+const teamNames: TeamName[] = ["대표팀", "교육팀", "장비팀", "홍보팀", "지원팀"];
 type Member = {
   id: string;
   name: string;
@@ -42,6 +44,7 @@ type Member = {
   grade: "예비신사" | "신사" | "구사";
   role: "관리자" | "회원";
   position?: "대표" | "부대표" | "교육팀장" | "장비팀장" | "홍보팀장" | "";
+  team?: TeamName | "";
   practicePermission?: boolean;
 };
 type Practice = {
@@ -122,6 +125,8 @@ type Mentor = {
   name: string;
   side: "좌궁" | "우궁";
   range: string;
+  experience?: string;
+  note?: string;
   capacity: number;
   mentees: string[];
 };
@@ -572,7 +577,10 @@ function PublicPortal({
   const [postFiles, setPostFiles] = useState<File[]>([]);
   const [answerTarget, setAnswerTarget] = useState<PublicQuestion | null>(null);
   const [answer, setAnswer] = useState("");
-  const isResponder = session?.role === "관리자" || session?.grade === "구사";
+  const canManagePromotion =
+    session?.role === "관리자" || session?.team === "홍보팀";
+  const isResponder =
+    canManagePromotion || session?.grade === "구사";
   const publicQuestions = (questions || []).filter(
     (item) => item.status === "answered",
   );
@@ -632,10 +640,10 @@ function PublicPortal({
           게시물
         </button>
       </nav>
-      {signedIn && session?.role === "관리자" && (
+      {signedIn && (canManagePromotion || (tab === "qa" && isResponder)) && (
         <div className="promo-adminbar">
           <span>홍보 페이지 관리</span>
-          {tab === "home" && (
+          {tab === "home" && canManagePromotion && (
             <button
               onClick={() => {
                 setSceneDrafts(shownScenes);
@@ -645,10 +653,10 @@ function PublicPortal({
               홈 편집
             </button>
           )}
-          {tab === "posts" && (
+          {tab === "posts" && canManagePromotion && (
             <button onClick={() => setPostEditor(true)}>게시물 추가</button>
           )}
-          {tab === "qa" && (
+          {tab === "qa" && isResponder && (
             <span className="question-count">
               답변 대기 {waitingQuestions.length}
             </span>
@@ -858,7 +866,7 @@ function PublicPortal({
                       />
                     ),
                   )}
-                  {session?.role === "관리자" && (
+                  {canManagePromotion && (
                     <button
                       className="post-delete"
                       onClick={() => onDeletePost?.(post.id)}
@@ -1623,29 +1631,32 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(""), 1900);
   };
-  const addEquipment = async (draft: EquipmentDraft) => {
-    if (session.role !== "관리자") throw new Error("관리자만 장비를 등록할 수 있어요.");
+  const canManageEquipment =
+    session.role === "관리자" || session.team === "장비팀";
+  const addEquipment = async (draft: EquipmentDraft | EquipmentDraft[]) => {
+    if (!canManageEquipment) throw new Error("관리자 또는 장비팀만 장비를 등록할 수 있어요.");
+    const drafts = Array.isArray(draft) ? draft : [draft];
     const clubRef = doc(db, "clubs", "simgunghoe");
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(clubRef);
       const current = snapshot.exists() && Array.isArray(snapshot.data().equipment)
         ? snapshot.data().equipment as Equipment[]
         : [];
-      if (draft.kind === "arrow" && current.some((item) => item.kind === "arrow" && item.lengthWeight === draft.lengthWeight && item.index === draft.index && item.indexNumber === draft.indexNumber)) {
+      if (drafts.some((candidate) => candidate.kind === "arrow" && current.some((item) => item.kind === "arrow" && item.lengthWeight === candidate.lengthWeight && item.index === candidate.index && item.indexNumber === candidate.indexNumber))) {
         throw new Error("같은 인덱스 넘버의 화살이 이미 등록되어 있어요.");
       }
-      const item: Equipment = {
-        ...draft,
+      const items = drafts.map((candidate) => ({
+        ...candidate,
         id: makeEquipmentId(),
         manualAvailable: true,
         status: "available",
         createdAt: new Date().toISOString(),
-      } as Equipment;
-      transaction.set(clubRef, { equipment: [...current, item] }, { merge: true });
+      }) as Equipment);
+      transaction.set(clubRef, { equipment: [...current, ...items] }, { merge: true });
     });
   };
   const toggleEquipmentAvailability = async (id: string) => {
-    if (session.role !== "관리자") throw new Error("관리자만 대여 가능 상태를 변경할 수 있어요.");
+    if (!canManageEquipment) throw new Error("관리자 또는 장비팀만 대여 가능 상태를 변경할 수 있어요.");
     const clubRef = doc(db, "clubs", "simgunghoe");
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(clubRef);
@@ -1654,7 +1665,7 @@ export default function Home() {
     });
   };
   const updateEquipmentNote = async (id: string, note: string) => {
-    if (session.role !== "관리자") throw new Error("관리자만 장비 비고를 수정할 수 있어요.");
+    if (!canManageEquipment) throw new Error("관리자 또는 장비팀만 장비 비고를 수정할 수 있어요.");
     const clubRef = doc(db, "clubs", "simgunghoe");
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(clubRef);
@@ -1703,7 +1714,7 @@ export default function Home() {
       const currentRentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
       const rental = currentRentals.find((item) => item.id === rentalId);
       if (!rental || rental.status !== "active") throw new Error("이미 반납된 대여 기록이에요.");
-      if (rental.memberId !== session.id && session.role !== "관리자") throw new Error("본인의 대여 기록만 수정할 수 있어요.");
+      if (rental.memberId !== session.id && !canManageEquipment) throw new Error("본인의 대여 기록만 수정할 수 있어요.");
       validateRentalNotes(notes, rental.itemIds);
       const lostIds = new Set(notes.filter((note) => note.type === "lost").flatMap((note) => note.itemIds));
       const damagedIds = new Set(notes.filter((note) => note.type === "damaged").flatMap((note) => note.itemIds));
@@ -1729,7 +1740,7 @@ export default function Home() {
       const currentRentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
       const rental = currentRentals.find((item) => item.id === rentalId);
       if (!rental || rental.status === "returned") throw new Error("이미 반납 완료된 기록이에요.");
-      if (rental.memberId !== session.id && session.role !== "관리자") throw new Error("본인의 대여 기록만 반납할 수 있어요.");
+      if (rental.memberId !== session.id && !canManageEquipment) throw new Error("본인의 대여 기록만 반납할 수 있어요.");
       const completedAt = new Date().toISOString();
       const returnDate = completedAt.slice(0, 10);
       transaction.set(clubRef, {
@@ -1739,7 +1750,7 @@ export default function Home() {
     });
   };
   const restoreEquipmentItem = async (itemId: string, action: "recover" | "repair") => {
-    if (session.role !== "관리자") throw new Error("관리자만 장비 상태를 해제할 수 있어요.");
+    if (!canManageEquipment) throw new Error("관리자 또는 장비팀만 장비 상태를 해제할 수 있어요.");
     const clubRef = doc(db, "clubs", "simgunghoe");
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(clubRef);
@@ -1765,7 +1776,7 @@ export default function Home() {
     });
   };
   const deleteEquipmentRental = async (rentalId: string) => {
-    if (session.role !== "관리자") throw new Error("관리자만 대여 기록을 삭제할 수 있어요.");
+    if (!canManageEquipment) throw new Error("관리자 또는 장비팀만 대여 기록을 삭제할 수 있어요.");
     const clubRef = doc(db, "clubs", "simgunghoe");
     await runTransaction(db, async (transaction) => {
       const snapshot = await transaction.get(clubRef);
@@ -1971,7 +1982,7 @@ export default function Home() {
           {roomStatus.isOpen && <small>{roomStatus.openedByName}</small>}
         </div>
         <div className="account">
-          {(session.role === "관리자" || session.grade === "구사") &&
+          {(session.role === "관리자" || session.grade === "구사" || session.team === "홍보팀") &&
             publicQuestions.some((item) => item.status === "waiting") && (
               <button
                 className="notification-bell"
@@ -2002,7 +2013,7 @@ export default function Home() {
             <small>
               {session.role === "관리자" && session.position
                 ? session.position
-                : session.grade}{" "}
+                : session.team || session.grade}{" "}
               · {session.role}
             </small>
           </span>
@@ -2404,6 +2415,16 @@ export default function Home() {
             );
             if (session.id === member.id) setSession(member);
             notify("회원 정보를 수정했어요");
+          }}
+          onTeamChange={(id, team) => {
+            const target = clubMembers.find((member) => member.id === id);
+            if (!target) return;
+            const updated = { ...target, team };
+            setClubMembers((all) =>
+              all.map((member) => (member.id === id ? updated : member)),
+            );
+            if (session.id === id) setSession(updated);
+            notify(team ? `${target.name}님을 ${team}에 배정했어요` : `${target.name}님의 팀 배정을 해제했어요`);
           }}
           onRoleChange={(id, role) => {
             const target = clubMembers.find((member) => member.id === id);
@@ -2880,7 +2901,9 @@ function Education({
   const [openSchedule, setOpenSchedule] = useState<EducationSchedule | null>(null);
   const [showMentorForm, setShowMentorForm] = useState(false);
   const canManageSchedule =
-    session.role === "관리자" || session.position === "교육팀장";
+    session.role === "관리자" ||
+    session.position === "교육팀장" ||
+    session.team === "교육팀";
   const canUseMentoring = session.grade !== "예비신사";
   const mine = mentors.find((mentor) => mentor.memberId === session.id);
   const myMentor = mentors.find((mentor) => mentor.mentees.includes(session.id));
@@ -2953,6 +2976,8 @@ function Education({
                   <span>{mentor.side}</span>
                 </div>
                 <p>자주 가는 활터 · {mentor.range}</p>
+                {mentor.experience && <p className="mentor-detail"><b>멘토 경력</b>{mentor.experience}</p>}
+                {mentor.note && <p className="mentor-detail"><b>비고</b>{mentor.note}</p>}
                 <small>멘티 {mentor.mentees.length} / {mentor.capacity}명</small>
                 {isMine ? (
                   <div className="mentor-owner-actions">
@@ -3145,8 +3170,10 @@ function ScheduleSheet({
 function MentorForm({ initial, session, onClose, onSave }: { initial?: Mentor; session: Member; onClose: () => void; onSave: (mentor: Mentor) => void }) {
   const [side, setSide] = useState<Mentor["side"]>(initial?.side || "좌궁");
   const [range, setRange] = useState(initial?.range || "");
+  const [experience, setExperience] = useState(initial?.experience || "");
+  const [note, setNote] = useState(initial?.note || "");
   const [capacity, setCapacity] = useState(initial?.capacity || 1);
-  return <div className="modal-back"><section className="modal education-modal"><div className="modal-head"><div><p className="eyebrow">도제 프로그램</p><h2>{initial ? "멘토 정보 수정" : "멘토 신청"}</h2></div><button onClick={onClose}>×</button></div><label>좌궁 / 우궁<select value={side} onChange={(e) => setSide(e.target.value as Mentor["side"])}><option>좌궁</option><option>우궁</option></select></label><label>자주 가는 활터<input value={range} onChange={(e) => setRange(e.target.value)} placeholder="예: 난지국궁장" /></label><label>최대 멘티 수<input type="number" min="1" max="20" value={capacity} onChange={(e) => setCapacity(Math.max(1, Number(e.target.value)))} /></label><button className="primary" disabled={!range.trim()} onClick={() => onSave({ memberId: session.id, name: session.name, side, range: range.trim(), capacity, mentees: initial?.mentees || [] })}>{initial ? "저장" : "멘토로 신청하기"}</button></section></div>;
+  return <div className="modal-back"><section className="modal education-modal"><div className="modal-head"><div><p className="eyebrow">도제 프로그램</p><h2>{initial ? "멘토 정보 수정" : "멘토 신청"}</h2></div><button onClick={onClose}>×</button></div><label>좌궁 / 우궁<select value={side} onChange={(e) => setSide(e.target.value as Mentor["side"])}><option>좌궁</option><option>우궁</option></select></label><label>자주 가는 활터<input value={range} onChange={(e) => setRange(e.target.value)} placeholder="예: 난지국궁장" /></label><label>멘토 경력<textarea value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="국궁 경력이나 교육 경험을 자유롭게 적어주세요" /></label><label>비고<textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="멘티에게 전하고 싶은 내용을 적어주세요" /></label><label>최대 멘티 수<input type="number" min="1" max="20" value={capacity} onChange={(e) => setCapacity(Math.max(1, Number(e.target.value)))} /></label><button className="primary" disabled={!range.trim()} onClick={() => onSave({ memberId: session.id, name: session.name, side, range: range.trim(), experience: experience.trim(), note: note.trim(), capacity, mentees: initial?.mentees || [] })}>{initial ? "저장" : "멘토로 신청하기"}</button></section></div>;
 }
 
 function addThirty(time: string) {
@@ -3285,6 +3312,7 @@ function Members({
   onCurrentTermChange,
   onAddMember,
   onUpdateMember,
+  onTeamChange,
   onRoleChange,
   onDeleteMember,
 }: {
@@ -3294,11 +3322,14 @@ function Members({
   onCurrentTermChange: (term: string) => void;
   onAddMember: (member: Member) => boolean;
   onUpdateMember: (member: Member) => void;
+  onTeamChange: (id: string, team: Member["team"]) => void;
   onRoleChange: (id: string, role: Member["role"]) => void;
   onDeleteMember: (member: Member) => void;
 }) {
+  const [memberTab, setMemberTab] = useState<"members" | "roles">("members");
   const [showAdd, setShowAdd] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [teamSelections, setTeamSelections] = useState<Partial<Record<TeamName, string>>>({});
   const [termYear, termSemester] = currentTerm.split("-").map(Number);
   const moveTerm = (direction: 1 | -1) => {
     const nextSemester = termSemester + direction;
@@ -3320,7 +3351,7 @@ function Members({
             회원 <span className="member-count">{members.length}명</span>
           </h2>
         </div>
-        {session.role === "관리자" && (
+        {session.role === "관리자" && memberTab === "members" && (
           <button
             className="primary add-button"
             onClick={() => setShowAdd(true)}
@@ -3330,6 +3361,11 @@ function Members({
           </button>
         )}
       </div>
+      <div className="member-section-tabs" aria-label="회원 관리 구분">
+        <button className={memberTab === "members" ? "active" : ""} onClick={() => setMemberTab("members")}>회원</button>
+        <button className={memberTab === "roles" ? "active" : ""} onClick={() => setMemberTab("roles")}>역할</button>
+      </div>
+      {memberTab === "members" ? <>
       <div className="term-setting">
         <div>
           <b>현재 학기</b>
@@ -3387,6 +3423,41 @@ function Members({
           </div>
         ))}
       </div>
+      </> : (
+        <div className="team-role-list">
+          {teamNames.map((team) => {
+            const assigned = members.filter((member) => member.team === team);
+            const selectedId = teamSelections[team] || "";
+            return (
+              <section className="team-role-card" key={team}>
+                <header>
+                  <div><b>{team}</b><small>{assigned.length}명</small></div>
+                  {session.role === "관리자" && (
+                    <div className="team-assign-control">
+                      <select value={selectedId} onChange={(event) => setTeamSelections((current) => ({ ...current, [team]: event.target.value }))} aria-label={`${team} 회원 선택`}>
+                        <option value="">회원 선택</option>
+                        {members.filter((member) => member.team !== team).map((member) => <option key={member.id} value={member.id}>{member.name}{member.team ? ` · ${member.team}` : ""}</option>)}
+                      </select>
+                      <button disabled={!selectedId} onClick={() => {
+                        const member = members.find((item) => item.id === selectedId);
+                        if (!member) return;
+                        if (member.team && !window.confirm(`${member.name}님을 ${member.team}에서 ${team}(으)로 이동할까요?`)) return;
+                        onTeamChange(member.id, team);
+                        setTeamSelections((current) => ({ ...current, [team]: "" }));
+                      }}>추가</button>
+                    </div>
+                  )}
+                </header>
+                <div className="team-members">
+                  {assigned.length ? assigned.map((member) => (
+                    <span key={member.id}><i>{member.name[0]}</i><b>{member.name}</b>{session.role === "관리자" && <button onClick={() => onTeamChange(member.id, "")} aria-label={`${member.name} 팀 해제`}>×</button>}</span>
+                  )) : <p>배정된 회원이 없어요.</p>}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
       {showAdd && (
         <MemberForm
           currentTerm={currentTerm}
@@ -3442,6 +3513,8 @@ function MemberForm({
             grade,
             role: initial?.role || "회원",
             position: initial?.position || "",
+            team: initial?.team || "",
+            practicePermission: initial?.practicePermission,
           });
         }}
       >
