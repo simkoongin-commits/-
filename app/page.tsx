@@ -3,9 +3,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import {
+  browserLocalPersistence,
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
+  setPersistence,
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
@@ -371,9 +373,21 @@ function LoginScreen({
     setSubmitting(true);
     setMessage("");
     try {
+      await setPersistence(auth, browserLocalPersistence);
       await signInWithEmailAndPassword(auth, authEmail(studentId), password);
-    } catch {
-      setMessage("학번 또는 비밀번호를 다시 확인해주세요.");
+    } catch (loginError: unknown) {
+      const code =
+        typeof loginError === "object" && loginError && "code" in loginError
+          ? String(loginError.code)
+          : "";
+      console.error("Login failed", code);
+      if (code === "auth/network-request-failed")
+        setMessage("네트워크 연결을 확인한 뒤 다시 시도해주세요.");
+      else if (code === "auth/too-many-requests")
+        setMessage("로그인 시도가 너무 많아요. 잠시 후 다시 시도해주세요.");
+      else if (code === "auth/operation-not-allowed")
+        setMessage("현재 로그인이 비활성화되어 있어요. 관리자에게 문의해주세요.");
+      else setMessage("학번 또는 비밀번호를 다시 확인해주세요.");
     } finally {
       setSubmitting(false);
     }
@@ -1167,10 +1181,7 @@ export default function Home() {
   useEffect(() => {
     return onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
-      if (user) {
-        setView("cards");
-        setTopTab("member");
-      }
+      if (user) setAccessError("");
     });
   }, []);
   useEffect(() => {
@@ -1207,22 +1218,6 @@ export default function Home() {
       }),
     [],
   );
-  useEffect(() => {
-    if (!authUser || !(session.role === "관리자" || session.grade === "구사"))
-      return;
-    return onSnapshot(
-      collection(db, "clubs", "simgunghoe", "questions"),
-      (snapshot) => {
-        const waiting = snapshot.docs
-          .map((item) => ({ id: item.id, ...item.data() }) as PublicQuestion)
-          .filter((item) => item.status === "waiting");
-        setPublicQuestions((published) => [
-          ...published.filter((item) => item.status === "answered"),
-          ...waiting,
-        ]);
-      },
-    );
-  }, [authUser, session.role, session.grade]);
   useEffect(() => {
     if (!authUser) return;
     const clubDoc = doc(db, "clubs", "simgunghoe");
@@ -1332,6 +1327,8 @@ export default function Home() {
         setEquipment(next.equipment);
         setEquipmentRentals(next.equipmentRentals);
         setSession(member);
+        setView("cards");
+        setTopTab("member");
         setReady(true);
       },
       () => {
@@ -1403,6 +1400,8 @@ export default function Home() {
       setClubMembers([member]);
       setSession(member);
       setNeedsBootstrap(false);
+      setView("cards");
+      setTopTab("member");
     } catch {
       setAccessError(
         "첫 관리자 등록에 실패했어요. 다시 로그인한 뒤 시도해주세요.",
@@ -1423,6 +1422,7 @@ export default function Home() {
   }) => {
     registrationInProgress.current = true;
     try {
+      await setPersistence(auth, browserLocalPersistence);
       await createUserWithEmailAndPassword(
         auth,
         authEmail(studentId),
@@ -1861,8 +1861,9 @@ export default function Home() {
             notify("답변을 공개했어요");
           }}
           onDiscard={(id) => {
-            void deleteDoc(doc(db, "clubs", "simgunghoe", "questions", id));
-            notify("질문을 폐기했어요");
+            void deleteDoc(doc(db, "public", "simgunghoe", "qa", id))
+              .then(() => notify("질문을 폐기했어요"))
+              .catch(() => notify("질문 폐기에 실패했어요. 다시 시도해주세요."));
           }}
         />
       </>

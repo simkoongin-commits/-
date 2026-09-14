@@ -2348,14 +2348,15 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .schedule-legend .educator, .weekly-table .educator { background: #e6f0ff; color: #2874be; }
 .schedule-legend .learner, .weekly-table .learner { background: #e9f7ed; color: #188045; }
 .weekly-table-wrap { width: 100%; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; touch-action: pan-x pan-y; -webkit-overflow-scrolling: touch; border: 1px solid #d4e3eb; border-radius: 12px; }
-.weekly-table { width: max-content; min-width: 760px; border-collapse: collapse; font-size: 11px; }
+.weekly-table { width: max-content; min-width: 600px; border-collapse: collapse; font-size: 11px; }
 .weekly-table th, .weekly-table td { border: 1px solid #d8e3e9; text-align: center; vertical-align: middle; }
 .weekly-table thead th { height: 52px; background: #f4f8fa; color: #28526b; font-size: 11px; }
 .weekly-table thead small { display: block; margin-top: 3px; color: #7893a3; font-size: 9px; }
 .weekly-table tbody > tr { height: 38px; }
 .weekly-table tbody > tr > th:first-child { width: 72px; min-width: 72px; padding-inline: 4px; background: #fafcfd; color: #33576c; }
 .weekly-table tbody > tr > th:nth-child(2) { min-width: 54px; }
-.weekly-table td { min-width: 105px; padding: 0; background: #fff; }
+.weekly-table thead th:nth-child(n + 3), .weekly-table td { width: 84px; min-width: 84px; padding: 0; background: #fff; }
+.weekly-table thead th:nth-child(n + 3) { background: #f4f8fa; }
 .weekly-table .educator-row td { background: #eef6ff; }
 .weekly-table .learner-row td { background: #effaf2; }
 .weekly-table thead th:first-child,
