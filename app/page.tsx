@@ -1196,6 +1196,7 @@ export default function Home() {
   const [mentors, setMentors] = useState<Mentor[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [showCalendarForm, setShowCalendarForm] = useState(false);
+  const [editingCalendarEvent, setEditingCalendarEvent] = useState<CalendarEvent | null>(null);
   const [roomStatus, setRoomStatus] = useState<RoomStatus>({ isOpen: false });
   const [hallOfFame, setHallOfFame] = useState<HallOfFame>(emptyHall);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
@@ -1827,14 +1828,31 @@ export default function Home() {
     ).then(() => notify("도제 프로그램 정보를 저장했어요")).catch(() => notify("도제 프로그램 정보를 저장하지 못했어요. 다시 시도해주세요."));
   };
   const saveCalendarEvent = (event: CalendarEvent) => {
-    const next = [...calendarEvents, event];
+    const editing = calendarEvents.some((item) => item.id === event.id);
+    const next = editing
+      ? calendarEvents.map((item) => (item.id === event.id ? event : item))
+      : [...calendarEvents, event];
     setCalendarEvents(next);
     setShowCalendarForm(false);
+    setEditingCalendarEvent(null);
     void setDoc(
       doc(db, "clubs", "simgunghoe"),
       { calendarEvents: next },
       { merge: true },
-    ).then(() => notify("달력 일정을 등록했어요")).catch(() => notify("달력 일정을 저장하지 못했어요. 다시 시도해주세요."));
+    ).then(() => notify(editing ? "달력 일정을 수정했어요" : "달력 일정을 등록했어요")).catch(() => notify("달력 일정을 저장하지 못했어요. 다시 시도해주세요."));
+  };
+  const deleteCalendarEvent = (eventId: string) => {
+    const next = calendarEvents.filter((item) => item.id !== eventId);
+    void setDoc(
+      doc(db, "clubs", "simgunghoe"),
+      { calendarEvents: next },
+      { merge: true },
+    ).then(() => {
+      setCalendarEvents(next);
+      setShowCalendarForm(false);
+      setEditingCalendarEvent(null);
+      notify("달력 일정을 삭제했어요");
+    }).catch(() => notify("달력 일정을 삭제하지 못했어요. 다시 시도해주세요."));
   };
   const copy = async (text: string, message = "공지 내용을 복사했어요") => {
     await navigator.clipboard.writeText(text);
@@ -2389,7 +2407,15 @@ export default function Home() {
           practices={practices}
           events={calendarEvents}
           canAdd={session.role === "관리자"}
-          onAdd={() => setShowCalendarForm(true)}
+          onAdd={() => {
+            setEditingCalendarEvent(null);
+            setShowCalendarForm(true);
+          }}
+          onEditEvent={(event) => {
+            if (session.role !== "관리자") return;
+            setEditingCalendarEvent(event);
+            setShowCalendarForm(true);
+          }}
           onSelect={(id) => {
             setView("cards");
             window.setTimeout(
@@ -2404,9 +2430,15 @@ export default function Home() {
       )}
       {showCalendarForm && (
         <CalendarEventForm
+          key={editingCalendarEvent?.id || "new-calendar-event"}
           session={session}
-          onClose={() => setShowCalendarForm(false)}
+          initial={editingCalendarEvent || undefined}
+          onClose={() => {
+            setShowCalendarForm(false);
+            setEditingCalendarEvent(null);
+          }}
           onSave={saveCalendarEvent}
+          onDelete={editingCalendarEvent ? () => deleteCalendarEvent(editingCalendarEvent.id) : undefined}
         />
       )}
       {view === "members" && (
@@ -3182,7 +3214,7 @@ function ScheduleSheet({
       <section className="modal schedule-sheet">
         <div className="modal-head"><div><p className="eyebrow">{shortScheduleLabel(schedule)}</p><h2>{schedule.place}</h2></div><button onClick={onClose}>×</button></div>
         <div className="schedule-controls"><div className="schedule-legend"><span className="educator">교육팀</span><span className="learner">예비신사</span></div>{canManage && <label>예비신사 칸 정원<input type="number" min="1" max="20" value={learnerCapacity} onChange={(e) => onSave({ ...schedule, learnerCapacity: Math.max(1, Number(e.target.value) || 1) })} /></label>}<small>각 시간 칸에 적용됩니다. 표를 좌우로 밀어 모든 날짜를 확인하세요.</small></div>
-        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr className="educator-row"><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; const matched = Boolean(slot?.educators.length && slot.learners.length); return <td key={key} className={matched ? "educator-cell matched-pair" : "educator-cell"}><button onClick={() => toggle(dateKey(date), time)} disabled={isPreliminary}>{slot?.educators.join("\n") || (!isPreliminary ? "+" : "")}</button></td>; })}</tr><tr className="learner-row"><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="learner-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
+        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr className="educator-row"><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; const matchedForMe = Boolean(slot?.educators.length && slot.learners.length && (slot.educators.includes(session.name) || slot.learners.includes(session.name))); return <td key={key} className={matchedForMe ? "educator-cell matched-pair" : "educator-cell"}><button onClick={() => toggle(dateKey(date), time)} disabled={isPreliminary}>{slot?.educators.join("\n") || (!isPreliminary ? "+" : "")}</button></td>; })}</tr><tr className="learner-row"><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="learner-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
         <section className="preliminary-status"><h3>예비신사 신청 현황</h3><div><article><b>신청</b>{preliminaryMembers.filter((member) => appliedNames.has(member.name)).map((member) => <span key={member.id}>{member.name}</span>) || null}</article><article><b>미신청</b>{preliminaryMembers.filter((member) => !appliedNames.has(member.name)).map((member) => <span key={member.id}>{member.name}</span>) || null}</article></div></section>
         {canManage && <button className="danger-button" onClick={() => { if (window.confirm("이 시간표를 폐기할까요?")) onDelete(); }}>시간표 폐기</button>}
       </section>
@@ -3207,29 +3239,36 @@ function addThirty(time: string) {
 
 function CalendarEventForm({
   session,
+  initial,
   onClose,
   onSave,
+  onDelete,
 }: {
   session: Member;
+  initial?: CalendarEvent;
   onClose: () => void;
   onSave: (event: CalendarEvent) => void;
+  onDelete?: () => void;
 }) {
   const today = new Date();
   const todayValue = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState(todayValue);
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
-  const [note, setNote] = useState("");
+  const [title, setTitle] = useState(initial?.title || "");
+  const [date, setDate] = useState(initial?.date || todayValue);
+  const [start, setStart] = useState(initial?.start || "");
+  const [end, setEnd] = useState(initial?.end || "");
+  const [note, setNote] = useState(initial?.note || "");
   return (
     <div className="modal-back">
       <section className="modal education-modal">
-        <div className="modal-head"><div><p className="eyebrow">달력</p><h2>일정 추가</h2></div><button onClick={onClose}>×</button></div>
+        <div className="modal-head"><div><p className="eyebrow">달력</p><h2>{initial ? "일정 수정" : "일정 추가"}</h2></div><button onClick={onClose}>×</button></div>
         <label>일정 제목<input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 운영진 회의" /></label>
         <label>날짜<input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
         <div className="form-row"><label>시작 시간 <input type="time" step="1800" value={start} onChange={(e) => setStart(e.target.value)} /></label><label>종료 시간 <input type="time" step="1800" value={end} onChange={(e) => setEnd(e.target.value)} /></label></div>
         <label>메모 <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="선택 입력" /></label>
-        <button className="primary" disabled={!title.trim()} onClick={() => onSave({ id: String(Date.now()), title: title.trim(), date, start, end, note: note.trim(), createdBy: session.id })}>일정 등록</button>
+        <div className="calendar-form-actions">
+          {onDelete && <button className="danger-button" onClick={() => { if (window.confirm("이 달력 일정을 삭제할까요?")) onDelete(); }}>일정 삭제</button>}
+          <button className="primary" disabled={!title.trim()} onClick={() => onSave({ id: initial?.id || String(Date.now()), title: title.trim(), date, start, end, note: note.trim(), createdBy: initial?.createdBy || session.id })}>{initial ? "수정 완료" : "일정 등록"}</button>
+        </div>
       </section>
     </div>
   );
@@ -3255,12 +3294,14 @@ function Calendar({
   onSelect,
   canAdd,
   onAdd,
+  onEditEvent,
 }: {
   practices: Practice[];
   events: CalendarEvent[];
   onSelect: (id: number) => void;
   canAdd: boolean;
   onAdd: () => void;
+  onEditEvent: (event: CalendarEvent) => void;
 }) {
   const [month, setMonth] = useState(new Date(2026, 8, 1));
   const year = month.getFullYear();
@@ -3314,9 +3355,9 @@ function Calendar({
                       </button>
                     ))}
                     {dayEvents.map((event) => (
-                      <div className="calendar-event" key={event.id} title={event.note}>
+                      <button className="calendar-event" key={event.id} title={event.note} disabled={!canAdd} onClick={() => onEditEvent(event)}>
                         {event.start ? `${event.start} ` : ""}{event.title}
-                      </div>
+                      </button>
                     ))}
                   </>
                 )}
