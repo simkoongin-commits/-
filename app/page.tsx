@@ -527,6 +527,7 @@ function PublicPortal({
   const [tab, setTab] = useState<"home" | "qa" | "posts">(initialTab);
   const [questionSent, setQuestionSent] = useState(false);
   const [questionError, setQuestionError] = useState("");
+  const [questionSubmitting, setQuestionSubmitting] = useState(false);
   const [question, setQuestion] = useState({
     title: "",
     body: "",
@@ -665,14 +666,19 @@ function PublicPortal({
             className="question-form"
             onSubmit={async (event) => {
               event.preventDefault();
+              if (!onQuestion || questionSubmitting) return;
+              setQuestionSubmitting(true);
               try {
-                await onQuestion?.(question);
+                await onQuestion(question);
                 setQuestionSent(true);
                 setQuestionError("");
                 setQuestion({ title: "", body: "", nickname: "" });
-              } catch {
+              } catch (error) {
+                console.error("Public Q&A submission failed", error);
                 setQuestionSent(false);
                 setQuestionError("질문을 보내지 못했어요. 잠시 후 다시 시도해주세요.");
+              } finally {
+                setQuestionSubmitting(false);
               }
             }}
           >
@@ -708,7 +714,13 @@ function PublicPortal({
                 placeholder="공개될 이름"
               />
             </label>
-            <button className="public-submit">질문 보내기</button>
+            <button
+              className="public-submit"
+              type="submit"
+              disabled={questionSubmitting}
+            >
+              {questionSubmitting ? "보내는 중..." : "질문 보내기"}
+            </button>
             {questionSent && (
               <p className="form-success">
                 질문을 접수했어요. 운영진이 확인 후 답변합니다.
@@ -1153,7 +1165,13 @@ export default function Home() {
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
   useEffect(() => {
-    return onAuthStateChanged(auth, setAuthUser);
+    return onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+      if (user) {
+        setView("cards");
+        setTopTab("member");
+      }
+    });
   }, []);
   useEffect(() => {
     if (!menuOpen) return;
@@ -1570,6 +1588,16 @@ export default function Home() {
       transaction.set(clubRef, { equipment: current.map((item) => item.id === id ? { ...item, manualAvailable: !item.manualAvailable } : item) }, { merge: true });
     });
   };
+  const updateEquipmentNote = async (id: string, note: string) => {
+    if (session.role !== "관리자") throw new Error("관리자만 장비 비고를 수정할 수 있어요.");
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      const current = snapshot.exists() && Array.isArray(snapshot.data().equipment) ? snapshot.data().equipment as Equipment[] : [];
+      if (!current.some((item) => item.id === id)) throw new Error("장비를 찾을 수 없어요.");
+      transaction.set(clubRef, { equipment: current.map((item) => item.id === id ? { ...item, note: note.trim() } : item) }, { merge: true });
+    });
+  };
   const validateRentalNotes = (notes: RentalNote[], itemIds: string[]) => {
     for (const note of notes) {
       if (note.type === "custom" && !note.text?.trim()) throw new Error("직접입력 비고 내용을 작성해주세요.");
@@ -1971,16 +1999,16 @@ export default function Home() {
       <nav className={menuOpen ? "tabs expanded" : "tabs"} aria-label="회원 메뉴">
         {menuOpen && <div className="drawer-head"><b>심궁<em>회</em></b><span>원하는 메뉴를 선택해주세요</span></div>}
         <button
-          className={view === "education" ? "active" : ""}
-          onClick={() => { setView("education"); setMenuOpen(false); }}
-        >
-          <span>✦</span>교육
-        </button>
-        <button
           className={view === "cards" ? "active" : ""}
           onClick={() => { setView("cards"); setMenuOpen(false); }}
         >
           <span>⌂</span>습사
+        </button>
+        <button
+          className={view === "education" ? "active" : ""}
+          onClick={() => { setView("education"); setMenuOpen(false); }}
+        >
+          <span>✦</span>교육
         </button>
         <button
           className={view === "calendar" ? "active" : ""}
@@ -2392,6 +2420,7 @@ export default function Home() {
           session={session}
           onAddEquipment={addEquipment}
           onToggleAvailability={toggleEquipmentAvailability}
+          onUpdateEquipmentNote={updateEquipmentNote}
           onCreateRental={createEquipmentRental}
           onAddRentalNotes={addEquipmentRentalNotes}
           onReturnRental={returnEquipmentRental}
