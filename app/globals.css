@@ -1843,6 +1843,10 @@ body {
   font-weight: 800;
   vertical-align: middle;
 }
+.calendar-event:disabled { opacity: 1; cursor: default; }
+.calendar-form-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.calendar-form-actions .danger-button,
+.calendar-form-actions .primary { width: 100%; margin: 0; }
 .member-section-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 14px; padding: 5px; border-radius: 14px; background: #e8f4fb; }
 .member-section-tabs button { min-height: 40px; border: 0; border-radius: 10px; background: transparent; color: #68869a; font-size: 13px; font-weight: 850; }
 .member-section-tabs button.active { background: #fff; color: #1479b3; box-shadow: 0 4px 12px #317da51a; }
