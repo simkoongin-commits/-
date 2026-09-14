@@ -9,4 +9,5 @@ npm install
 npm run dev
 ```
 
-Firebase 환경 변수는 `.env.example`을 참고해 설정합니다.
+Firebase 환경 변수는 `.env.example`을 `.env.local`로 복사한 뒤 값을 채웁니다.
+값이 없으면 첫 화면에서 `auth/invalid-api-key` 오류가 납니다.
