@@ -90,6 +90,20 @@ type PromoScene = {
   theme: "sky" | "ink" | "foam";
   image?: string;
 };
+type MemberView =
+  | "education"
+  | "cards"
+  | "calendar"
+  | "members"
+  | "hall"
+  | "equipment";
+type PromoTab = "home" | "qa" | "posts";
+type AppNavigationState = {
+  simkoong: true;
+  topTab: "public" | "member";
+  view: MemberView;
+  promoTab: PromoTab;
+};
 type EducationSlot = {
   educators: string[];
   learners: string[];
@@ -509,6 +523,7 @@ function PublicPortal({
   signedIn,
   onAuth,
   onMember,
+  onTabChange,
   initialTab = "home",
   session,
   scenes,
@@ -524,8 +539,9 @@ function PublicPortal({
   signedIn: boolean;
   onAuth: (mode: "login" | "signup") => void;
   onMember?: () => void;
+  onTabChange?: (tab: PromoTab) => void;
   session?: Member;
-  initialTab?: "home" | "qa" | "posts";
+  initialTab?: PromoTab;
   scenes?: PromoScene[];
   posts?: PublicPost[];
   questions?: PublicQuestion[];
@@ -538,7 +554,7 @@ function PublicPortal({
   onDiscard?: (id: string) => void;
   onSaveScenes?: (scenes: PromoScene[]) => void;
 }) {
-  const [tab, setTab] = useState<"home" | "qa" | "posts">(initialTab);
+  const [tab, setTab] = useState<PromoTab>(initialTab);
   const [questionSent, setQuestionSent] = useState(false);
   const [questionError, setQuestionError] = useState("");
   const [questionSubmitting, setQuestionSubmitting] = useState(false);
@@ -565,6 +581,11 @@ function PublicPortal({
   );
   const shownScenes = scenes?.length ? scenes : defaultPromoScenes;
   const shownPosts = posts?.length ? posts : defaultPublicPosts;
+  useEffect(() => setTab(initialTab), [initialTab]);
+  const navigateTab = (nextTab: PromoTab) => {
+    setTab(nextTab);
+    onTabChange?.(nextTab);
+  };
   return (
     <main className="public-shell">
       <header className="public-topbar">
@@ -594,19 +615,19 @@ function PublicPortal({
       <nav className="public-nav" aria-label="홍보 메뉴">
         <button
           className={tab === "home" ? "active" : ""}
-          onClick={() => setTab("home")}
+          onClick={() => navigateTab("home")}
         >
           홈
         </button>
         <button
           className={tab === "qa" ? "active" : ""}
-          onClick={() => setTab("qa")}
+          onClick={() => navigateTab("qa")}
         >
           Q&amp;A
         </button>
         <button
           className={tab === "posts" ? "active" : ""}
-          onClick={() => setTab("posts")}
+          onClick={() => navigateTab("posts")}
         >
           게시물
         </button>
@@ -661,7 +682,7 @@ function PublicPortal({
               <br />
               당신과 함께.
             </h2>
-            <button onClick={() => setTab("qa")}>궁금한 점 물어보기</button>
+            <button onClick={() => navigateTab("qa")}>궁금한 점 물어보기</button>
           </article>
         </section>
       )}
@@ -977,7 +998,7 @@ function PublicPortal({
                 postFiles,
               );
               setPostEditor(false);
-              setTab("posts");
+              navigateTab("posts");
               setPostDraft({ title: "", body: "" });
               setPostFiles([]);
             }}
@@ -1130,9 +1151,7 @@ function BootstrapAdmin({
 
 export default function Home() {
   const [practices, setPractices] = useState<Practice[]>(seedPractices);
-  const [view, setView] = useState<
-    "education" | "cards" | "calendar" | "members" | "hall" | "equipment"
-  >("cards");
+  const [view, setView] = useState<MemberView>("cards");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
   const [filter, setFilter] = useState<
     "all" | "regular" | "general" | "competition"
@@ -1154,9 +1173,7 @@ export default function Home() {
   const [accessError, setAccessError] = useState("");
   const [needsBootstrap, setNeedsBootstrap] = useState(false);
   const [topTab, setTopTab] = useState<"public" | "member">("member");
-  const [promoStartTab, setPromoStartTab] = useState<"home" | "qa" | "posts">(
-    "home",
-  );
+  const [promoStartTab, setPromoStartTab] = useState<PromoTab>("home");
   const [authOverlay, setAuthOverlay] = useState<"login" | "signup" | null>(
     null,
   );
@@ -1178,6 +1195,8 @@ export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
+  const appHistoryInitialized = useRef(false);
+  const applyingHistory = useRef(false);
   useEffect(() => {
     return onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
@@ -1195,6 +1214,52 @@ export default function Home() {
       document.documentElement.style.overflow = previousHtmlOverflow;
     };
   }, [menuOpen]);
+  useEffect(() => {
+    if (!authUser || !ready) {
+      appHistoryInitialized.current = false;
+      return;
+    }
+    if (applyingHistory.current) return;
+    const nextState: AppNavigationState = {
+      simkoong: true,
+      topTab,
+      view,
+      promoTab: promoStartTab,
+    };
+    const currentState = window.history.state as Partial<AppNavigationState> | null;
+    if (!appHistoryInitialized.current) {
+      window.history.replaceState(nextState, "", window.location.href);
+      window.history.pushState(nextState, "", window.location.href);
+      appHistoryInitialized.current = true;
+      return;
+    }
+    if (
+      currentState?.simkoong &&
+      currentState.topTab === nextState.topTab &&
+      currentState.view === nextState.view &&
+      currentState.promoTab === nextState.promoTab
+    )
+      return;
+    window.history.pushState(nextState, "", window.location.href);
+  }, [authUser, ready, topTab, view, promoStartTab]);
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (!authUser || !ready) return;
+      const state = event.state as AppNavigationState | null;
+      if (!state?.simkoong) return;
+      applyingHistory.current = true;
+      setMenuOpen(false);
+      setProfileOpen(false);
+      setTopTab(state.topTab);
+      setView(state.view);
+      setPromoStartTab(state.promoTab);
+      window.setTimeout(() => {
+        applyingHistory.current = false;
+      }, 50);
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [authUser, ready]);
   useEffect(
     () =>
       onSnapshot(doc(db, "public", "simgunghoe"), (snapshot) => {
@@ -1794,6 +1859,7 @@ export default function Home() {
         <PublicPortal
           signedIn
           initialTab={promoStartTab}
+          onTabChange={setPromoStartTab}
           onAuth={() => undefined}
           onMember={() => setTopTab("member")}
           session={session}
