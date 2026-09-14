@@ -25,7 +25,8 @@ service cloud.firestore {
           && request.resource.data.body is string
           && request.resource.data.body.size() <= 2000
           && request.resource.data.status == "waiting";
-        allow write: if request.auth != null;
+        // 답변·수정·삭제는 Firebase Admin SDK를 사용하는 서버 API에서 처리합니다.
+        allow update, delete: if false;
       }
     }
   }
