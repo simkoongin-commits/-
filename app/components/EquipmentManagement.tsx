@@ -201,7 +201,7 @@ export default function EquipmentManagement({
           </div>
           {openStat && (() => {
             const selected = equipmentStats.find((stat) => stat.key === openStat)!;
-            return <div className="equipment-stat-detail"><header><b>{selected.label} 장비</b><span>{selected.items.length}개</span></header>{selected.items.length ? <div>{selected.items.map((item) => <button key={item.id} onClick={() => openEquipment(item)}><span>{item.kind === "bow" ? "활" : "화살"}</span><b>{equipmentName(item)}</b><small>{equipmentUnavailableReason(item) || "대여 가능"}</small></button>)}</div> : <p>해당하는 장비가 없어요.</p>}</div>;
+            return <EquipmentStatDetail label={selected.label} items={selected.items} onOpen={openEquipment} />;
           })()}
         </section>
         <div className="equipment-toolbar">
@@ -210,7 +210,7 @@ export default function EquipmentManagement({
         </div>
         {inventoryTab === "bow" ? <div className="bow-inventory">
           <div className="equipment-count"><span>전체 활</span><strong>{bows.length}개</strong></div>
-          {bowGroups.size ? <div className="bow-tree">{[...bowGroups].map(([group, items]) => { const sample = items[0]; return <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {items.length}개</small></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>; })}</div> : <Empty text="등록된 활이 없어요." />}
+          {bowGroups.size ? <div className="bow-tree">{[...bowGroups].map(([group, items]) => { const sample = items[0]; return items.length === 1 ? <EquipmentCard key={group} item={sample} onClick={() => openEquipment(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {items.length}개</small></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>; })}</div> : <Empty text="등록된 활이 없어요." />}
         </div> : <div className="arrow-tree">
           {arrowGroups.size ? [...arrowGroups].map(([group, indexes]) => <details key={group}><summary><span>{group}</span><span className="arrow-summary-actions"><small>{[...indexes.values()].flat().length}개</small>{canManageEquipment && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group }); setAdding("arrow"); }}>+</button>}</span></summary><div>{[...indexes].map(([index, items]) => <details key={index}><summary><span>{index}</span><span className="arrow-summary-actions"><small>{items.length}개</small>{canManageEquipment && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group, index }); setAdding("arrow"); }}>+</button>}</span></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>)}</div></details>) : <Empty text="등록된 화살이 없어요." />}
         </div>}
@@ -241,6 +241,24 @@ export default function EquipmentManagement({
 }
 
 function Empty({ text }: { text: string }) { return <p className="equipment-empty">{text}</p>; }
+
+function EquipmentStatDetail({ label, items, onOpen }: { label: string; items: Equipment[]; onOpen: (item: Equipment) => void }) {
+  const statBows = assignBowIndexes(items).filter((item): item is BowEquipment => item.kind === "bow").sort((a, b) =>
+    Number.parseFloat(a.pound) - Number.parseFloat(b.pound) ||
+    a.length.localeCompare(b.length, "ko", { numeric: true }) ||
+    a.side.localeCompare(b.side, "ko") ||
+    (a.indexNumber || 0) - (b.indexNumber || 0));
+  const statArrows = items.filter((item): item is ArrowEquipment => item.kind === "arrow").sort((a, b) =>
+    a.lengthWeight.localeCompare(b.lengthWeight, "ko", { numeric: true }) ||
+    a.index.localeCompare(b.index, "ko", { numeric: true }) ||
+    a.indexNumber.localeCompare(b.indexNumber, "ko", { numeric: true }));
+  const statBowGroups = groupBows(statBows);
+  const statArrowGroups = groupArrows(statArrows);
+  return <div className="equipment-stat-detail"><header><b>{label} 장비</b><span>{items.length}개</span></header>{items.length ? <div className="equipment-stat-kinds">
+    {statBows.length > 0 && <section><h4>활 <small>{statBows.length}개</small></h4><div className="bow-tree">{[...statBowGroups].map(([group, bows]) => { const sample = bows[0]; return bows.length === 1 ? <EquipmentCard key={group} item={sample} onClick={() => onOpen(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {bows.length}개</small></summary><div className="equipment-grid">{bows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>; })}</div></section>}
+    {statArrows.length > 0 && <section><h4>화살 <small>{statArrows.length}개</small></h4><div className="arrow-tree">{[...statArrowGroups].map(([group, indexes]) => <details key={group}><summary><span>{group}</span><small>{[...indexes.values()].flat().length}개</small></summary><div>{[...indexes].map(([index, arrows]) => <details key={index}><summary><span>{index}</span><small>{arrows.length}개</small></summary><div className="equipment-grid">{arrows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>)}</div></details>)}</div></section>}
+  </div> : <p>해당하는 장비가 없어요.</p>}</div>;
+}
 
 function RentalChoice({ item, selected, onClick }: { item: Equipment; selected: boolean; onClick: () => void }) {
   const unavailable = !canRentEquipment(item);
