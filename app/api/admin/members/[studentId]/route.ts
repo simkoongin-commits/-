@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticatedMember } from "../../../../lib/firebaseAdmin";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function DELETE(
   request: NextRequest,
   context: { params: Promise<{ studentId: string }> },
@@ -13,11 +16,17 @@ export async function DELETE(
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
     const { adminAuth, clubRef, members, member: caller } = authenticated;
-    if (caller?.role !== "관리자") {
-      return NextResponse.json({ error: "관리자만 계정을 삭제할 수 있습니다." }, { status: 403 });
-    }
+    if (!caller) return NextResponse.json({ error: "회원 정보를 찾을 수 없습니다." }, { status: 403 });
 
     const orphanOnly = request.nextUrl.searchParams.get("orphanOnly") === "true";
+    const isAdmin = caller.role === "관리자";
+    const isSelf = caller.id === studentId;
+    if (!isAdmin && !isSelf) {
+      return NextResponse.json({ error: "본인 또는 관리자만 계정을 삭제할 수 있습니다." }, { status: 403 });
+    }
+    if (orphanOnly && !isAdmin) {
+      return NextResponse.json({ error: "관리자만 가입 정보를 초기화할 수 있습니다." }, { status: 403 });
+    }
     const target = members.find((member) => member.id === studentId);
     if (orphanOnly && target) {
       return NextResponse.json({ error: "현재 회원 목록에 있는 계정입니다. 회원 목록에서 삭제해주세요." }, { status: 409 });
@@ -36,9 +45,7 @@ export async function DELETE(
       if (code !== "auth/user-not-found") throw error;
     }
 
-    if (!orphanOnly) {
-      await clubRef.update({ members: members.filter((member) => member.id !== studentId) });
-    }
+    if (!orphanOnly) await clubRef.update({ members: members.filter((member) => member.id !== studentId) });
     return NextResponse.json({ ok: true, authDeleted });
   } catch (error) {
     console.error("Admin member deletion failed", error);

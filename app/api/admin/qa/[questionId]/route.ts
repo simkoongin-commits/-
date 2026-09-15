@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticatedMember, type StoredMember } from "../../../../lib/firebaseAdmin";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const canRespond = (member: StoredMember | undefined) => Boolean(
   member && (member.role === "관리자" || member.grade === "구사" || member.team === "홍보팀"),
 );
