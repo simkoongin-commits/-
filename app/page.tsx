@@ -5,7 +5,6 @@ import type { User } from "firebase/auth";
 import {
   browserLocalPersistence,
   createUserWithEmailAndPassword,
-  deleteUser,
   onAuthStateChanged,
   setPersistence,
   signInWithEmailAndPassword,
@@ -1659,7 +1658,7 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(""), 1900);
   };
-  const requestAdminAccountDeletion = async (studentId: string, orphanOnly = false) => {
+  const requestAccountDeletion = async (studentId: string, orphanOnly = false) => {
     const token = await auth.currentUser?.getIdToken();
     if (!token) throw new Error("로그인이 필요해요.");
     const response = await fetch(`/api/admin/members/${encodeURIComponent(studentId)}${orphanOnly ? "?orphanOnly=true" : ""}`, {
@@ -2534,7 +2533,7 @@ export default function Home() {
           }}
           onCleanupAuth={async (studentId) => {
             try {
-              await requestAdminAccountDeletion(studentId, true);
+              await requestAccountDeletion(studentId, true);
               notify("남아 있던 가입 계정을 초기화했어요");
               return true;
             } catch (error) {
@@ -2592,7 +2591,7 @@ export default function Home() {
             )
               return;
             const remaining = clubMembers.filter((item) => item.id !== member.id);
-            void requestAdminAccountDeletion(member.id)
+            void requestAccountDeletion(member.id)
               .then(() => {
                 setClubMembers(remaining);
                 notify("회원 정보와 가입 계정을 완전히 삭제했어요");
@@ -2691,25 +2690,16 @@ export default function Home() {
               )
             )
               return;
-            const remaining = clubMembers.filter((m) => m.id !== session.id);
-            if (
-              session.role === "관리자" &&
-              !remaining.some((m) => m.role === "관리자")
-            ) {
+            if (session.role === "관리자" && clubMembers.filter((m) => m.role === "관리자").length === 1) {
               notify("다른 관리자를 먼저 승급해주세요");
               return;
             }
-            await setDoc(
-              doc(db, "clubs", "simgunghoe"),
-              { members: remaining },
-              { merge: true },
-            );
             try {
-              if (auth.currentUser) await deleteUser(auth.currentUser);
-            } catch {
-              /* 회원 기록 삭제 후에는 일정표 접근이 차단됩니다. */
+              await requestAccountDeletion(session.id);
+              await signOut(auth);
+            } catch (error) {
+              notify(error instanceof Error ? error.message : "계정을 삭제하지 못했어요.");
             }
-            await signOut(auth);
           }}
         />
       )}
