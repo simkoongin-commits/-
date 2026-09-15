@@ -2257,7 +2257,7 @@ body {
   background: #fff;
   box-shadow: 0 10px 28px #2476a70b;
 }
-.public-contact { color: #5f8196; text-decoration: none; font-size: 10px; font-weight: 750; }
+.public-contact { color: #5f8196; text-decoration: none; font-size: 15px; font-weight: 750; }
 .public-contact:hover { color: #167db9; text-decoration: underline; }
 .post-carousel { position: relative; aspect-ratio: 1 / 1; display: grid; place-items: center; overflow: hidden; background: linear-gradient(135deg, #1a82bd, #7ed3ee); color: #e9fbff; font-family: Georgia, serif; font-size: 25px; letter-spacing: .08em; }
 .post-carousel.has-media { background: #eef4f7; }
@@ -2954,11 +2954,20 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .cohort-chart-y { padding: 0 5px 25px 0; display: flex; flex-direction: column; justify-content: space-between; color: #8aa1ad; text-align: right; font-size: 8px; }
 .cohort-chart-scroll { overflow-x: auto; overflow-y: hidden; border-bottom: 1px solid #dbe8ed; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(50% - 1px), #e5eef2 50%, transparent calc(50% + 1px)); }
 .cohort-bars { min-width: 100%; width: max-content; height: 100%; padding: 4px 8px 0; display: flex; align-items: stretch; gap: 8px; }
-.cohort-bars article { width: 42px; height: 100%; display: grid; grid-template-rows: 18px minmax(0, 1fr) 24px; align-items: end; justify-items: center; }
-.cohort-bars article strong { color: #26789f; font-size: 10px; }
-.cohort-bars article > div { width: 25px; height: 100%; display: flex; align-items: end; border-radius: 8px 8px 0 0; background: #eff7fa; }
-.cohort-bars article i { width: 100%; min-height: 3px; display: block; border-radius: 8px 8px 2px 2px; background: linear-gradient(180deg, #61c4e9, #1681bb); box-shadow: 0 4px 12px #1985bb30; }
-.cohort-bars article span { align-self: center; color: #55798b; white-space: nowrap; font-size: 9px; font-weight: 850; }
+.cohort-bars > button { width: 42px; height: 100%; padding: 0; display: grid; grid-template-rows: 18px minmax(0, 1fr) 24px; align-items: end; justify-items: center; border: 0; border-radius: 7px 7px 0 0; background: transparent; }
+.cohort-bars > button.active { background: #e7f6fc; box-shadow: inset 0 0 0 1px #86cce8; }
+.cohort-bars > button strong { color: #26789f; font-size: 10px; }
+.cohort-bars > button > div { width: 25px; height: 100%; display: flex; align-items: end; border-radius: 8px 8px 0 0; background: #eff7fa; }
+.cohort-bars > button i { width: 100%; min-height: 3px; display: block; border-radius: 8px 8px 2px 2px; background: linear-gradient(180deg, #61c4e9, #1681bb); box-shadow: 0 4px 12px #1985bb30; }
+.cohort-bars > button span { align-self: center; color: #55798b; white-space: nowrap; font-size: 9px; font-weight: 850; }
+.cohort-population-detail { margin-top: 11px; padding: 12px; border: 1px solid #cfe6f1; border-radius: 12px; background: #fafdff; }
+.cohort-population-detail > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: #275f7a; font-size: 11px; }
+.cohort-population-detail > header span { color: #7895a4; font-size: 9px; }
+.cohort-population-detail > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.cohort-population-detail > div > span { padding: 8px; border-radius: 9px; background: #edf7fb; }
+.cohort-population-detail b, .cohort-population-detail small { display: block; }
+.cohort-population-detail > div b { color: #285b73; font-size: 10px; }
+.cohort-population-detail > div small { margin-top: 3px; color: #8199a4; font-size: 8px; }
 .cohort-card-list { display: grid; gap: 10px; }
 .cohort-card { overflow: hidden; border: 1px solid #d8e9f1; border-radius: 14px; background: #fbfdfe; }
 .cohort-card > header { padding: 12px 13px 10px; display: flex; align-items: baseline; gap: 5px; border-bottom: 1px solid #e4eef3; }
@@ -2985,7 +2994,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 
 @media (max-width: 430px) {
   .public-topbar { min-height: 68px; gap: 6px; padding: 9px 12px; }
-  .public-contact { width: auto; padding-left: 0; font-size: 8px; }
+  .public-contact { width: auto; padding-left: 0; font-size: 12px; }
 }
 @media (max-width: 380px) {
   .equipment-grid { grid-template-columns: 1fr; }
