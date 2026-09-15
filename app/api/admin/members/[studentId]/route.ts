@@ -45,7 +45,28 @@ export async function DELETE(
       if (code !== "auth/user-not-found") throw error;
     }
 
-    if (!orphanOnly) await clubRef.update({ members: members.filter((member) => member.id !== studentId) });
+    if (!orphanOnly) {
+      const latest = await clubRef.get();
+      const data = latest.data() || {};
+      const practiceStats = { ...((data.practiceStats || {}) as Record<string, unknown>) };
+      delete practiceStats[studentId];
+      const practices = Array.isArray(data.practices) ? data.practices.map((practice: {
+        applicants?: string[];
+        applicantIds?: string[];
+        attendeeIds?: string[];
+        [key: string]: unknown;
+      }) => ({
+        ...practice,
+        applicants: (practice.applicants || []).filter((name) => name !== target?.name),
+        applicantIds: (practice.applicantIds || []).filter((id) => id !== studentId),
+        attendeeIds: (practice.attendeeIds || []).filter((id) => id !== studentId),
+      })) : [];
+      await clubRef.update({
+        members: members.filter((member) => member.id !== studentId),
+        practiceStats,
+        practices,
+      });
+    }
     return NextResponse.json({ ok: true, authDeleted });
   } catch (error) {
     console.error("Admin member deletion failed", error);

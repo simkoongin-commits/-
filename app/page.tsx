@@ -25,6 +25,7 @@ import { toPng } from "html-to-image";
 import sanitizeHtml from "sanitize-html";
 import { auth, db, storage } from "@/lib/firebase";
 import EquipmentManagement, { type EquipmentDraft } from "@/app/components/EquipmentManagement";
+import Statistics from "@/app/components/Statistics";
 import {
   assignBowIndexes,
   bowGroupKey,
@@ -36,6 +37,12 @@ import {
   type EquipmentRental,
   type RentalNote,
 } from "@/lib/equipment";
+import {
+  archiveAndCountPractice,
+  normalizePracticeStats,
+  type ArchivedPractice,
+  type PracticeStats,
+} from "@/lib/practiceStats";
 
 type TeamName = "대표팀" | "교육팀" | "장비팀" | "홍보팀" | "지원팀";
 const teamNames: TeamName[] = ["대표팀", "교육팀", "장비팀", "홍보팀", "지원팀"];
@@ -58,6 +65,11 @@ const teamForPosition = (position?: Member["position"]): TeamName | "" => {
 };
 const memberTeam = (member: Member): TeamName | "" =>
   teamForPosition(member.position) || member.team || "";
+const normalizeMemberTeam = (member: Member): TeamName | "" => {
+  const positionTeam = teamForPosition(member.position);
+  if (positionTeam) return positionTeam;
+  return member.team && teamNames.includes(member.team) ? member.team : "";
+};
 const leaderPositionForTeam: Partial<Record<TeamName, Member["position"]>> = {
   대표팀: "대표",
   교육팀: "교육팀장",
@@ -83,6 +95,9 @@ type Practice = {
   updated?: string[];
   timetable?: string;
   createdBy?: string;
+  applicantIds?: string[];
+  attendeeIds?: string[];
+  attendanceTracking?: boolean;
 };
 type PublicPost = {
   id: string;
@@ -118,7 +133,8 @@ type MemberView =
   | "calendar"
   | "members"
   | "hall"
-  | "equipment";
+  | "equipment"
+  | "statistics";
 type PromoTab = "home" | "qa" | "posts";
 type AppNavigationState = {
   simkoong: true;
@@ -164,14 +180,28 @@ type HallOfFame = Record<HallRank, string[]>;
 type StoredHallOfFame = Partial<HallOfFame> & { "초5중"?: string[] };
 const hallRanks: HallRank[] = ["초1중", "초2중", "초3중", "초4중", "초몰기", "단"];
 const emptyHall = (): HallOfFame => ({ "초1중": [], "초2중": [], "초3중": [], "초4중": [], "초몰기": [], "단": [] });
-const normalizeHall = (stored?: StoredHallOfFame): HallOfFame => ({
-  "초1중": stored?.["초1중"] || [],
-  "초2중": stored?.["초2중"] || [],
-  "초3중": stored?.["초3중"] || [],
-  "초4중": stored?.["초4중"] || [],
-  "초몰기": stored?.["초몰기"] || stored?.["초5중"] || [],
-  "단": stored?.["단"] || [],
-});
+const normalizeHall = (stored?: StoredHallOfFame): HallOfFame => {
+  const normalized = emptyHall();
+  const seen = new Set<string>();
+  [...hallRanks].reverse().forEach((rank) => {
+    const ids = rank === "초몰기" ? stored?.[rank] || stored?.["초5중"] || [] : stored?.[rank] || [];
+    normalized[rank] = ids.filter((id) => {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  });
+  return normalized;
+};
+const preparePractices = (value: unknown): Practice[] => {
+  const practices = Array.isArray(value) ? value as Practice[] : seedPractices;
+  const now = Date.now();
+  return practices.map((practice) => {
+    if (practice.attendanceTracking !== undefined) return practice;
+    const cleanupAt = new Date(`${practice.date}T${practice.end || "23:59"}`).getTime() + 24 * 60 * 60 * 1000;
+    return cleanupAt > now ? { ...practice, attendanceTracking: true, attendeeIds: practice.attendeeIds || [] } : practice;
+  });
+};
 const educationCacheKey = (kind: "schedules" | "mentors") =>
   `simgunghoe:education:${kind}`;
 const readEducationCache = <T,>(kind: "schedules" | "mentors", fallback: T) => {
@@ -633,6 +663,7 @@ function PublicPortal({
           </span>
           <b>심궁회</b>
         </a>
+        <a className="public-contact" href="mailto:simkoongin@gmail.com">문의: simkoongin@gmail.com</a>
         <div className="public-actions">
           {signedIn ? (
             <button className="member-link" onClick={onMember}>
@@ -1184,7 +1215,7 @@ export default function Home() {
   const [toast, setToast] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Practice | null>(null);
-  const [participants, setParticipants] = useState<Practice | null>(null);
+  const [participantPracticeId, setParticipantPracticeId] = useState<number | null>(null);
   const [cancelTarget, setCancelTarget] = useState<number | null>(null);
   const [cardMenu, setCardMenu] = useState<number | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -1218,6 +1249,8 @@ export default function Home() {
   const [hallOfFame, setHallOfFame] = useState<HallOfFame>(emptyHall);
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [equipmentRentals, setEquipmentRentals] = useState<EquipmentRental[]>([]);
+  const [archivedPractices, setArchivedPractices] = useState<ArchivedPractice[]>([]);
+  const [practiceStats, setPracticeStats] = useState<PracticeStats>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
@@ -1329,6 +1362,8 @@ export default function Home() {
           hallOfFame: emptyHall(),
           equipment: [],
           equipmentRentals: [],
+          archivedPractices: [],
+          practiceStats: {},
           }).catch(() => {
             setAccessError(
               "공동 일정판을 준비하지 못했어요. 다시 로그인한 뒤 시도해주세요.",
@@ -1349,14 +1384,13 @@ export default function Home() {
           ? (data.members as Member[]).map((m) => ({
               ...m,
               grade: gradeFor(m.joinTerm, term),
+              team: normalizeMemberTeam(m),
             }))
           : initialMembers;
         const studentId = authUser.email?.split("@")[0];
         if (members.length === 0 && studentId) {
           const emptyState = {
-            practices: Array.isArray(data.practices)
-              ? (data.practices as Practice[])
-              : seedPractices,
+            practices: preparePractices(data.practices),
             members: [],
             currentTerm: term,
             copyFormats: { ...defaultCopyFormats, ...(data.copyFormats || {}) },
@@ -1371,6 +1405,8 @@ export default function Home() {
             hallOfFame: normalizeHall(data.hallOfFame as StoredHallOfFame | undefined),
             equipment: indexedEquipment,
             equipmentRentals: Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [],
+            archivedPractices: Array.isArray(data.archivedPractices) ? data.archivedPractices as ArchivedPractice[] : [],
+            practiceStats: normalizePracticeStats(data.practiceStats),
           };
           cloudState.current = JSON.stringify(emptyState);
           setPractices(emptyState.practices);
@@ -1379,6 +1415,8 @@ export default function Home() {
           setCopyFormats(emptyState.copyFormats);
           setEquipment(emptyState.equipment);
           setEquipmentRentals(emptyState.equipmentRentals);
+          setArchivedPractices(emptyState.archivedPractices);
+          setPracticeStats(emptyState.practiceStats);
           setNeedsBootstrap(true);
           setReady(true);
           return;
@@ -1391,9 +1429,7 @@ export default function Home() {
           return;
         }
         const next = {
-          practices: Array.isArray(data.practices)
-            ? (data.practices as Practice[])
-            : seedPractices,
+          practices: preparePractices(data.practices),
           members,
           currentTerm: term,
           copyFormats: { ...defaultCopyFormats, ...(data.copyFormats || {}) },
@@ -1410,6 +1446,8 @@ export default function Home() {
           hallOfFame: normalizeHall(data.hallOfFame as StoredHallOfFame | undefined),
           equipment: indexedEquipment,
           equipmentRentals: Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [],
+          archivedPractices: Array.isArray(data.archivedPractices) ? data.archivedPractices as ArchivedPractice[] : [],
+          practiceStats: normalizePracticeStats(data.practiceStats),
         };
         cloudState.current = JSON.stringify(next);
         setPractices(next.practices);
@@ -1423,6 +1461,8 @@ export default function Home() {
         setHallOfFame(next.hallOfFame);
         setEquipment(next.equipment);
         setEquipmentRentals(next.equipmentRentals);
+        setArchivedPractices(next.archivedPractices);
+        setPracticeStats(next.practiceStats);
         setSession(member);
         if (initializedMemberViewFor.current !== authUser.uid) {
           initializedMemberViewFor.current = authUser.uid;
@@ -1453,6 +1493,8 @@ export default function Home() {
       hallOfFame,
       equipment,
       equipmentRentals,
+      archivedPractices,
+      practiceStats,
     });
     if (cloudState.current === next) return;
     cloudState.current = next;
@@ -1468,13 +1510,15 @@ export default function Home() {
       hallOfFame,
       equipment,
       equipmentRentals,
+      archivedPractices,
+      practiceStats,
     }).catch(() => {
       cloudState.current = "";
       setAccessError(
         "공동 데이터 저장에 실패했어요. 잠시 후 다시 시도해주세요.",
       );
     });
-  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, ready, authUser]);
+  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, practiceStats, ready, authUser]);
   useEffect(() => {
     if (!ready || !authUser) return;
     const cleanExpiredRentals = async () => {
@@ -1492,8 +1536,42 @@ export default function Home() {
     const timer = window.setInterval(() => void cleanExpiredRentals(), 15 * 60 * 1000);
     return () => window.clearInterval(timer);
   }, [ready, authUser]);
+  useEffect(() => {
+    if (!ready || !authUser) return;
+    const archiveExpired = async () => {
+      const clubRef = doc(db, "clubs", "simgunghoe");
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(clubRef);
+        if (!snapshot.exists()) return;
+        const data = snapshot.data();
+        const currentPractices = Array.isArray(data.practices) ? data.practices as Practice[] : [];
+        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+        const expired = currentPractices.filter((practice) => new Date(`${practice.date}T${practice.end || "23:59"}`).getTime() <= cutoff);
+        if (!expired.length) return;
+        let nextStats = normalizePracticeStats(data.practiceStats);
+        const nextArchives = Array.isArray(data.archivedPractices) ? [...data.archivedPractices] as ArchivedPractice[] : [];
+        const members = Array.isArray(data.members) ? data.members as Member[] : [];
+        const archivedIds = new Set(nextArchives.map((practice) => practice.id));
+        expired.forEach((practice) => {
+          if (archivedIds.has(practice.id)) return;
+          const result = archiveAndCountPractice(nextStats, members, practice);
+          nextStats = result.stats;
+          nextArchives.push(result.archived);
+          archivedIds.add(practice.id);
+        });
+        transaction.set(clubRef, {
+          practices: currentPractices.filter((practice) => !expired.some((item) => item.id === practice.id)),
+          archivedPractices: nextArchives,
+          practiceStats: nextStats,
+        }, { merge: true });
+      });
+    };
+    void archiveExpired().catch(() => setToast("지난 습사 기록을 정리하지 못했어요. 잠시 후 다시 시도해주세요."));
+    const timer = window.setInterval(() => void archiveExpired(), 15 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [ready, authUser]);
   const finishBootstrap = async (member: Member) => {
-    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals };
+    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, practiceStats };
     try {
       await setDoc(doc(db, "clubs", "simgunghoe"), next);
       cloudState.current = JSON.stringify(next);
@@ -1934,10 +2012,39 @@ export default function Home() {
     }
     setPractices((all) =>
       all.map((p) =>
-        p.id === id ? { ...p, applicants: [...p.applicants, session.name] } : p,
+        p.id === id ? {
+          ...p,
+          applicants: [...p.applicants, session.name],
+          applicantIds: Array.from(new Set([...(p.applicantIds || []), session.id])),
+        } : p,
       ),
     );
     notify("참가 신청했어요");
+  };
+  const toggleAttendance = async (practiceId: number, memberId: string) => {
+    if (!(session.role === "관리자" || session.grade === "신사" || session.grade === "구사")) {
+      notify("신사·구사·관리자만 출석을 확인할 수 있어요");
+      return;
+    }
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    try {
+      await runTransaction(db, async (transaction) => {
+        const snapshot = await transaction.get(clubRef);
+        if (!snapshot.exists()) throw new Error("습사 정보를 불러오지 못했어요.");
+        const current = Array.isArray(snapshot.data().practices) ? snapshot.data().practices as Practice[] : [];
+        const target = current.find((practice) => practice.id === practiceId);
+        if (!target) throw new Error("이미 정리된 습사예요.");
+        if (Date.now() < new Date(`${target.date}T${target.start}`).getTime()) throw new Error("습사 시작 시간부터 출석체크할 수 있어요.");
+        const attendeeIds = new Set(target.attendeeIds || []);
+        if (attendeeIds.has(memberId)) attendeeIds.delete(memberId);
+        else attendeeIds.add(memberId);
+        transaction.set(clubRef, {
+          practices: current.map((practice) => practice.id === practiceId ? { ...practice, attendanceTracking: true, attendeeIds: [...attendeeIds] } : practice),
+        }, { merge: true });
+      });
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "출석 상태를 변경하지 못했어요.");
+    }
   };
   const confirmCancellation = () => {
     if (cancelTarget === null) return;
@@ -1947,6 +2054,8 @@ export default function Home() {
           ? {
               ...p,
               applicants: p.applicants.filter((name) => name !== session.name),
+              applicantIds: (p.applicantIds || []).filter((id) => id !== session.id),
+              attendeeIds: (p.attendeeIds || []).filter((id) => id !== session.id),
             }
           : p,
       ),
@@ -2189,6 +2298,9 @@ export default function Home() {
         <button className={view === "hall" ? "active" : ""} onClick={() => { setView("hall"); setMenuOpen(false); }}>
           <span>♛</span>명예의 전당
         </button>
+        <button className={view === "statistics" ? "active" : ""} onClick={() => { setView("statistics"); setMenuOpen(false); }}>
+          <span>▥</span>통계
+        </button>
         <button className={view === "equipment" ? "active" : ""} onClick={() => { setView("equipment"); setMenuOpen(false); }}>
           <span>⌁</span>장비 관리
         </button>
@@ -2387,7 +2499,7 @@ export default function Home() {
                   {p.note && <p className="note">{p.note}</p>}
                   <button
                     className="people"
-                    onClick={() => setParticipants(p)}
+                    onClick={() => setParticipantPracticeId(p.id)}
                     aria-label={`${p.title} 참여인원 보기`}
                   >
                     <div className="faces">
@@ -2451,6 +2563,7 @@ export default function Home() {
       {view === "calendar" && (
         <Calendar
           practices={practices}
+          archivedPractices={archivedPractices}
           events={calendarEvents}
           canAdd={session.role === "관리자"}
           onAdd={() => {
@@ -2607,7 +2720,18 @@ export default function Home() {
           hall={hallOfFame}
           members={clubMembers}
           editable={session.role === "관리자"}
-          onChange={setHallOfFame}
+          onChange={(next) => setHallOfFame(normalizeHall(next))}
+        />
+      )}
+      {view === "statistics" && (
+        <Statistics
+          session={session}
+          members={clubMembers}
+          currentTerm={currentTerm}
+          stats={practiceStats}
+          archives={archivedPractices}
+          hall={hallOfFame}
+          equipment={equipment}
         />
       )}
       {view === "equipment" && (
@@ -2626,11 +2750,13 @@ export default function Home() {
           onDeleteRental={deleteEquipmentRental}
         />
       )}
-      {participants && (
+      {participantPracticeId !== null && practices.find((practice) => practice.id === participantPracticeId) && (
         <Participants
-          practice={participants}
+          practice={practices.find((practice) => practice.id === participantPracticeId)!}
           members={clubMembers}
-          onClose={() => setParticipants(null)}
+          session={session}
+          onToggleAttendance={(memberId) => void toggleAttendance(participantPracticeId, memberId)}
+          onClose={() => setParticipantPracticeId(null)}
         />
       )}
       {cancelTarget !== null && (
@@ -2724,7 +2850,7 @@ export default function Home() {
             } else {
               setPractices((v) => [
                 ...v,
-                { ...p, id: Date.now(), applicants: [], createdBy: session.id },
+                { ...p, id: Date.now(), applicants: [], applicantIds: [], attendeeIds: [], attendanceTracking: true, createdBy: session.id },
               ]);
               notify("새 습사를 등록했어요");
             }
@@ -2933,12 +3059,23 @@ function ProfilePanel({
 function Participants({
   practice,
   members,
+  session,
+  onToggleAttendance,
   onClose,
 }: {
   practice: Practice;
   members: Member[];
+  session: Member;
+  onToggleAttendance: (memberId: string) => void;
   onClose: () => void;
 }) {
+  const canCheck = session.role === "관리자" || session.grade === "신사" || session.grade === "구사";
+  const started = Date.now() >= new Date(`${practice.date}T${practice.start}`).getTime();
+  const attendeeIds = new Set(practice.attendeeIds || []);
+  const rows = practice.applicants.map((name, index) => {
+    const member = members.find((item) => item.name === name);
+    return { name, index, member, attended: Boolean(member && attendeeIds.has(member.id)) };
+  }).sort((a, b) => Number(a.attended) - Number(b.attended) || a.index - b.index);
   return (
     <div
       className="modal-back"
@@ -2952,12 +3089,12 @@ function Participants({
           </div>
           <button onClick={onClose}>×</button>
         </div>
+        <p className="attendance-guide">{started ? canCheck ? "체크된 회원은 목록 아래로 이동해요." : "신사·구사·관리자가 출석을 확인할 수 있어요." : `${practice.start}부터 출석체크가 열려요.`}</p>
         <div className="participant-list">
           {practice.applicants.length ? (
-            practice.applicants.map((name, index) => {
-              const member = members.find((m) => m.name === name);
+            rows.map(({ name, index, member, attended }) => {
               return (
-                <div key={`${name}-${index}`}>
+                <div key={`${name}-${index}`} className={attended ? "attended" : ""}>
                   <span className="avatar">{name[0]}</span>
                   <div>
                     <b>{name}</b>
@@ -2967,7 +3104,7 @@ function Participants({
                         : member?.grade || "회원"}
                     </small>
                   </div>
-                  <span>{index + 1}</span>
+                  {started && member ? <label className="attendance-check"><input type="checkbox" checked={attended} disabled={!canCheck} onChange={() => onToggleAttendance(member.id)} /><span>{attended ? "출석" : "확인"}</span></label> : <span>{index + 1}</span>}
                 </div>
               );
             })
@@ -3333,11 +3470,20 @@ function HallOfFameView({ hall, members, editable, onChange }: { hall: HallOfFam
     link.href = dataUrl;
     link.click();
   };
-  return <section className="content hall-page"><div className="hall-paper" ref={captureRef}><header><h2>명예의 전당</h2></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button className="hall-admin-control" aria-label="삭제" onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : <small>아직 기록된 회원이 없어요</small>}</p></div>{editable && <select className="hall-admin-control" value="" onChange={(e) => { if (!e.target.value) return; onChange({ ...hall, [rank]: [...hall[rank], e.target.value] }); }}><option value="">추가</option>{members.filter((member) => !Object.values(hall).flat().includes(member.id)).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div><button className="hall-save-image" onClick={() => void saveImage()}>이미지 저장</button></section>;
+  const moveMember = (memberId: string, rank: HallRank) => {
+    const next = Object.fromEntries(hallRanks.map((currentRank) => [
+      currentRank,
+      hall[currentRank].filter((id) => id !== memberId),
+    ])) as HallOfFame;
+    next[rank] = [...next[rank], memberId];
+    onChange(next);
+  };
+  return <section className="content hall-page"><div className="hall-paper" ref={captureRef}><header><h2>명예의 전당</h2></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button className="hall-admin-control" aria-label="삭제" onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : <small>아직 기록된 회원이 없어요</small>}</p></div>{editable && <select className="hall-admin-control" value="" onChange={(e) => { if (!e.target.value) return; moveMember(e.target.value, rank); }}><option value="">추가/이동</option>{members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div><button className="hall-save-image" onClick={() => void saveImage()}>이미지 저장</button></section>;
 }
 
 function Calendar({
   practices,
+  archivedPractices,
   events,
   onSelect,
   canAdd,
@@ -3345,6 +3491,7 @@ function Calendar({
   onEditEvent,
 }: {
   practices: Practice[];
+  archivedPractices: ArchivedPractice[];
   events: CalendarEvent[];
   onSelect: (id: number) => void;
   canAdd: boolean;
@@ -3396,6 +3543,7 @@ function Calendar({
           {days.map((d, i) => {
             const key = `${year}-${String(monthNumber + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
             const dayPractices = practices.filter((x) => x.date === key);
+            const dayArchives = archivedPractices.filter((x) => x.date === key && !dayPractices.some((practice) => practice.id === x.id));
             const dayEvents = events.filter((x) => x.date === key);
             return (
               <div key={i} className={key === todayKey ? "today" : ""}>
@@ -3404,6 +3552,11 @@ function Calendar({
                     <span>{d}</span>
                     {dayPractices.map((practice) => (
                       <button className={practice.type} key={practice.id} onClick={() => onSelect(practice.id)}>
+                        {practice.start}<br />{practice.title}
+                      </button>
+                    ))}
+                    {dayArchives.map((practice) => (
+                      <button className={`${practice.type} archived`} key={`archive-${practice.id}`} disabled>
                         {practice.start}<br />{practice.title}
                       </button>
                     ))}
