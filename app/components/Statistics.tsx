@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Equipment } from "@/lib/equipment";
 import {
   bucketForKind,
   emptyStatsBucket,
@@ -25,6 +24,7 @@ type StatisticsMember = {
 type HallRank = "초1중" | "초2중" | "초3중" | "초4중" | "초몰기" | "단";
 type HallOfFame = Record<HallRank, string[]>;
 type PeriodMode = "month" | "term";
+const hallRanks: HallRank[] = ["초1중", "초2중", "초3중", "초4중", "초몰기", "단"];
 
 const kinds: Array<{ value: PracticeKind | "all"; label: string }> = [
   { value: "all", label: "전체" },
@@ -57,7 +57,6 @@ export default function Statistics({
   stats,
   archives,
   hall,
-  equipment,
 }: {
   session: StatisticsMember;
   members: StatisticsMember[];
@@ -65,12 +64,12 @@ export default function Statistics({
   stats: PracticeStats;
   archives: ArchivedPractice[];
   hall: HallOfFame;
-  equipment: Equipment[];
 }) {
   const [periodMode, setPeriodMode] = useState<PeriodMode>("month");
   const [month, setMonth] = useState(currentMonthKey());
   const [term, setTerm] = useState(currentTerm);
   const [kind, setKind] = useState<PracticeKind | "all">("all");
+  const [openCohortStage, setOpenCohortStage] = useState("");
   const periodKey = periodMode === "month" ? month : term;
   const monthOptions = useMemo(() => Array.from(new Set([
     currentMonthKey(),
@@ -101,13 +100,6 @@ export default function Statistics({
   const trackedAttendance = selectedArchives.reduce((sum, item) => sum + item.attendanceCount, 0);
   const trackedApplicants = selectedArchives.reduce((sum, item) => sum + item.applicantCount, 0);
   const cohortRows = Array.from(new Set(members.map((member) => member.joinTerm))).sort().reverse();
-  const equipmentCounts = {
-    total: equipment.length,
-    available: equipment.filter((item) => item.status === "available" && item.manualAvailable).length,
-    rented: equipment.filter((item) => item.status === "rented").length,
-    lost: equipment.filter((item) => item.status === "lost").length,
-    damaged: equipment.filter((item) => item.status === "damaged").length,
-  };
 
   return (
     <section className="content statistics-page">
@@ -153,12 +145,25 @@ export default function Statistics({
 
       <section className="stats-section">
         <div className="stats-section-head"><div><small>초중 현황</small><h3>입부 학기별 현재 단계</h3></div></div>
-        <div className="cohort-table-wrap"><table className="cohort-table"><thead><tr><th>입부</th>{(Object.keys(hall) as HallRank[]).map((rank) => <th key={rank}>{rank}</th>)}</tr></thead><tbody>{cohortRows.map((cohort) => <tr key={cohort}><th>{cohort}</th>{(Object.entries(hall) as Array<[HallRank, string[]]>).map(([rank, ids]) => <td key={rank} title={members.filter((member) => member.joinTerm === cohort && ids.includes(member.id)).map((member) => member.name).join(", ")}>{members.filter((member) => member.joinTerm === cohort && ids.includes(member.id)).length}</td>)}</tr>)}</tbody></table></div>
-      </section>
-
-      <section className="stats-section equipment-stats">
-        <div className="stats-section-head"><div><small>장비 현황</small><h3>전체 {equipmentCounts.total}개</h3></div></div>
-        <div><span>대여 가능 <b>{equipmentCounts.available}</b></span><span>대여 중 <b>{equipmentCounts.rented}</b></span><span>분실 <b>{equipmentCounts.lost}</b></span><span>손상 <b>{equipmentCounts.damaged}</b></span></div>
+        <div className="cohort-card-list">
+          {cohortRows.map((cohort) => (
+            <article className="cohort-card" key={cohort}>
+              <header><b>{cohort}</b><span>입부</span></header>
+              <div className="cohort-stage-list">
+                {hallRanks.map((rank, index) => {
+                  const stageMembers = members.filter((member) => member.joinTerm === cohort && hall[rank].includes(member.id));
+                  const key = `${cohort}-${rank}`;
+                  return (
+                    <button className={`cohort-stage stage-${index + 1} ${openCohortStage === key ? "open" : ""}`} key={rank} onClick={() => setOpenCohortStage((current) => current === key ? "" : key)}>
+                      <span>{rank}</span><strong>{stageMembers.length}<i>명</i></strong>
+                      {openCohortStage === key && <small>{stageMembers.length ? stageMembers.map((member) => member.name).join(" · ") : "해당 단계의 회원이 없어요."}</small>}
+                    </button>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
       <p className="stats-retention-note">상세 출석 명단은 습사 종료 하루 뒤 삭제되고 숫자 통계만 남아요.</p>
     </section>
