@@ -664,13 +664,13 @@ function PublicPortal({
   return (
     <main className="public-shell">
       <header className="public-topbar">
-        <a className="public-contact" href="mailto:simkoongin@gmail.com">문의: simkoongin@gmail.com</a>
         <a className="brand" href="#top">
           <span className="brandmark">
             <img src="/hanyang-mark.png" alt="한양대학교 마크" />
           </span>
           <b>심궁회</b>
         </a>
+        <a className="public-contact" href="mailto:simkoongin@gmail.com">문의: simkoongin@gmail.com</a>
         <div className="public-actions">
           {signedIn ? (
             <button className="member-link" onClick={onMember}>

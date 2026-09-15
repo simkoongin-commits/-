@@ -70,6 +70,7 @@ export default function Statistics({
   const [term, setTerm] = useState(currentTerm);
   const [kind, setKind] = useState<PracticeKind | "all">("all");
   const [openCohortStage, setOpenCohortStage] = useState("");
+  const [openMemberGroup, setOpenMemberGroup] = useState<"all" | StatisticsMember["grade"] | null>(null);
   const periodKey = periodMode === "month" ? month : term;
   const monthOptions = useMemo(() => Array.from(new Set([
     currentMonthKey(),
@@ -100,6 +101,9 @@ export default function Statistics({
   const trackedAttendance = selectedArchives.reduce((sum, item) => sum + item.attendanceCount, 0);
   const trackedApplicants = selectedArchives.reduce((sum, item) => sum + item.applicantCount, 0);
   const cohortRows = Array.from(new Set(members.map((member) => member.joinTerm))).sort().reverse();
+  const cohortPopulation = cohortRows.map((cohort) => ({ cohort, members: members.filter((member) => member.joinTerm === cohort) }));
+  const maxCohortPopulation = Math.max(1, ...cohortPopulation.map((item) => item.members.length));
+  const selectedMemberGroup = openMemberGroup === "all" ? members : openMemberGroup ? members.filter((member) => member.grade === openMemberGroup) : [];
 
   return (
     <section className="content statistics-page">
@@ -138,9 +142,18 @@ export default function Statistics({
           <article><small>습사</small><strong>{selectedArchives.length}<i>회</i></strong></article>
           <article><small>평균 출석</small><strong>{selectedArchives.length ? (trackedAttendance / selectedArchives.length).toFixed(1) : "0"}<i>명</i></strong></article>
           <article><small>신청 이행률</small><strong>{percentage(trackedAttendance, trackedApplicants)}<i>%</i></strong></article>
-          <article><small>전체 회원</small><strong>{members.length}<i>명</i></strong></article>
+          <button className={openMemberGroup === "all" ? "active" : ""} onClick={() => setOpenMemberGroup((current) => current === "all" ? null : "all")}><small>전체 회원</small><strong>{members.length}<i>명</i></strong></button>
         </div>
-        <div className="distribution-row">{(["예비신사", "신사", "구사"] as const).map((grade) => <span key={grade}><b>{grade}</b>{members.filter((member) => member.grade === grade).length}명</span>)}</div>
+        <div className="distribution-row">{(["예비신사", "신사", "구사"] as const).map((grade) => <button className={openMemberGroup === grade ? "active" : ""} key={grade} onClick={() => setOpenMemberGroup((current) => current === grade ? null : grade)}><b>{grade}</b>{members.filter((member) => member.grade === grade).length}명</button>)}</div>
+        {openMemberGroup && <div className="member-group-detail"><header><b>{openMemberGroup === "all" ? "전체 회원" : openMemberGroup}</b><span>{selectedMemberGroup.length}명</span></header>{selectedMemberGroup.length ? <div>{selectedMemberGroup.slice().sort((a, b) => a.name.localeCompare(b.name, "ko")).map((member) => <span key={member.id}><b>{member.name}</b><small>{member.joinTerm} · {roleLabel(member)}</small></span>)}</div> : <p>해당 회원이 없어요.</p>}</div>}
+      </section>
+
+      <section className="stats-section">
+        <div className="stats-section-head"><div><small>회원 유지 현황</small><h3>입부 시기별 현재 인원</h3></div></div>
+        <div className="cohort-chart" aria-label="입부 시기별 현재 회원 수 막대그래프">
+          <div className="cohort-chart-y"><span>{maxCohortPopulation}</span><span>{Math.ceil(maxCohortPopulation / 2)}</span><span>0</span></div>
+          <div className="cohort-chart-scroll"><div className="cohort-bars">{cohortPopulation.map((item) => <article key={item.cohort} title={`${item.cohort} 입부 · ${item.members.length}명`}><strong>{item.members.length}</strong><div><i style={{ height: `${(item.members.length / maxCohortPopulation) * 100}%` }} /></div><span>{item.cohort}</span></article>)}</div></div>
+        </div>
       </section>
 
       <section className="stats-section">
@@ -154,7 +167,7 @@ export default function Statistics({
                   const stageMembers = members.filter((member) => member.joinTerm === cohort && hall[rank].includes(member.id));
                   const key = `${cohort}-${rank}`;
                   return (
-                    <button className={`cohort-stage stage-${index + 1} ${openCohortStage === key ? "open" : ""}`} key={rank} onClick={() => setOpenCohortStage((current) => current === key ? "" : key)}>
+                    <button className={`cohort-stage stage-${index + 1} ${stageMembers.length === 0 ? "empty" : ""} ${openCohortStage === key ? "open" : ""}`} key={rank} onClick={() => setOpenCohortStage((current) => current === key ? "" : key)}>
                       <span>{rank}</span><strong>{stageMembers.length}<i>명</i></strong>
                       {openCohortStage === key && <small>{stageMembers.length ? stageMembers.map((member) => member.name).join(" · ") : "해당 단계의 회원이 없어요."}</small>}
                     </button>

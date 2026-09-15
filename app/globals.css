@@ -1951,17 +1951,17 @@ body {
   top: 0;
   z-index: 25;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px 12px;
-  min-height: 84px;
-  padding: 9px 20px 12px;
+  min-height: 68px;
+  padding: 9px 20px;
   background: #f5fbffdf;
   backdrop-filter: blur(16px);
 }
-.public-topbar .public-contact { grid-column: 1 / -1; grid-row: 1; }
-.public-topbar .brand { grid-column: 1; grid-row: 2; }
-.public-topbar .public-actions { grid-column: 2; grid-row: 2; }
+.public-topbar .brand { grid-column: 1; grid-row: 1; }
+.public-topbar .public-contact { grid-column: 2; grid-row: 1; justify-self: center; text-align: center; }
+.public-topbar .public-actions { grid-column: 3; grid-row: 1; }
 .public-topbar .brand {
   display: flex;
   align-items: center;
@@ -2784,7 +2784,12 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .equipment-stat-detail > div > button > b { overflow: hidden; color: #285a72; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
 .equipment-stat-detail > div > button > small { color: #899ea8; font-size: 8px; }
 .equipment-stat-detail > p { margin: 8px 0 2px; color: #8aa0aa; text-align: center; font-size: 10px; }
+.equipment-stat-kinds { display: grid; gap: 13px; }
+.equipment-stat-kinds > section > h4 { margin: 0 0 7px; display: flex; align-items: center; justify-content: space-between; color: #1f6384; font-size: 12px; }
+.equipment-stat-kinds > section > h4 small { color: #8199a5; font-size: 9px; }
+.equipment-stat-kinds .equipment-card { min-height: 88px; }
 .bow-tree { display: grid; gap: 10px; }
+.bow-tree > .equipment-card { width: 100%; }
 .bow-tree details { overflow: hidden; border: 1px solid #d5e8f2; border-radius: 14px; background: #fff; }
 .bow-tree summary { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 14px; color: #1d607f; cursor: pointer; font-size: 12px; font-weight: 900; }
 .bow-tree summary small { color: #718f9f; font-size: 10px; }
@@ -2900,11 +2905,12 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .personal-stats > header > span { padding: 6px 9px; border-radius: 999px; background: #d7f1ff; color: #1677aa; font-size: 10px; font-weight: 900; }
 .personal-stats > p { margin: 13px 0 0; color: #678699; font-size: 10px; }
 .stats-metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.stats-metric-grid article { min-height: 82px; padding: 12px; display: grid; align-content: space-between; border-radius: 13px; background: #f2f9fd; }
-.stats-metric-grid article small { color: #6f8f9f; font-size: 9px; font-weight: 750; }
-.stats-metric-grid article strong { color: #176f9f; font-size: 24px; }
-.stats-metric-grid article i { margin-left: 2px; font-size: 10px; font-style: normal; }
-.stats-metric-grid.compact article { min-height: 72px; }
+.stats-metric-grid article, .stats-metric-grid > button { min-height: 82px; padding: 12px; display: grid; align-content: space-between; border: 1px solid transparent; border-radius: 13px; background: #f2f9fd; text-align: left; }
+.stats-metric-grid > button.active { border-color: #67c0e6; background: #e4f6fd; box-shadow: 0 0 0 2px #a9e3f744; }
+.stats-metric-grid article small, .stats-metric-grid > button small { color: #6f8f9f; font-size: 9px; font-weight: 750; }
+.stats-metric-grid article strong, .stats-metric-grid > button strong { color: #176f9f; font-size: 24px; }
+.stats-metric-grid article i, .stats-metric-grid > button i { margin-left: 2px; font-size: 10px; font-style: normal; }
+.stats-metric-grid.compact article, .stats-metric-grid.compact > button { min-height: 72px; }
 .stats-period-tabs { display: flex; padding: 3px; border-radius: 10px; background: #eaf5fb; }
 .stats-period-tabs button { min-height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: #68879a; font-size: 10px; font-weight: 850; }
 .stats-period-tabs button.active { background: #fff; color: #1379b3; box-shadow: 0 3px 8px rgba(29, 106, 146, .12); }
@@ -2933,8 +2939,26 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .rate-ranking p b { color: #26835b; }
 .rate-ranking .stats-empty { display: block; border: 0; color: #8ba0aa; text-align: center; }
 .distribution-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 12px; }
-.distribution-row span { padding: 10px 5px; border-radius: 10px; background: #f1f8fb; color: #6b8795; text-align: center; font-size: 9px; }
+.distribution-row button { padding: 10px 5px; border: 1px solid transparent; border-radius: 10px; background: #f1f8fb; color: #6b8795; text-align: center; font-size: 9px; }
+.distribution-row button.active { border-color: #65bee4; background: #e4f6fd; box-shadow: 0 0 0 2px #a9e3f744; }
 .distribution-row b { display: block; margin-bottom: 3px; color: #236383; }
+.member-group-detail { margin-top: 8px; padding: 12px; border: 1px solid #cfe6f1; border-radius: 12px; background: #fafdff; }
+.member-group-detail > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: #275f7a; font-size: 11px; }
+.member-group-detail > header span { color: #7895a4; font-size: 9px; }
+.member-group-detail > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.member-group-detail > div > span { min-width: 0; padding: 8px; border-radius: 9px; background: #edf7fb; }
+.member-group-detail > div b { display: block; overflow: hidden; color: #285b73; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.member-group-detail > div small { display: block; overflow: hidden; margin-top: 3px; color: #8199a4; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }
+.member-group-detail > p { margin: 7px 0; color: #8aa0aa; text-align: center; font-size: 10px; }
+.cohort-chart { position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr); height: 210px; }
+.cohort-chart-y { padding: 0 5px 25px 0; display: flex; flex-direction: column; justify-content: space-between; color: #8aa1ad; text-align: right; font-size: 8px; }
+.cohort-chart-scroll { overflow-x: auto; overflow-y: hidden; border-bottom: 1px solid #dbe8ed; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(50% - 1px), #e5eef2 50%, transparent calc(50% + 1px)); }
+.cohort-bars { min-width: 100%; width: max-content; height: 100%; padding: 4px 8px 0; display: flex; align-items: stretch; gap: 8px; }
+.cohort-bars article { width: 42px; height: 100%; display: grid; grid-template-rows: 18px minmax(0, 1fr) 24px; align-items: end; justify-items: center; }
+.cohort-bars article strong { color: #26789f; font-size: 10px; }
+.cohort-bars article > div { width: 25px; height: 100%; display: flex; align-items: end; border-radius: 8px 8px 0 0; background: #eff7fa; }
+.cohort-bars article i { width: 100%; min-height: 3px; display: block; border-radius: 8px 8px 2px 2px; background: linear-gradient(180deg, #61c4e9, #1681bb); box-shadow: 0 4px 12px #1985bb30; }
+.cohort-bars article span { align-self: center; color: #55798b; white-space: nowrap; font-size: 9px; font-weight: 850; }
 .cohort-card-list { display: grid; gap: 10px; }
 .cohort-card { overflow: hidden; border: 1px solid #d8e9f1; border-radius: 14px; background: #fbfdfe; }
 .cohort-card > header { padding: 12px 13px 10px; display: flex; align-items: baseline; gap: 5px; border-bottom: 1px solid #e4eef3; }
@@ -2953,12 +2977,15 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .cohort-stage.stage-4 { background: #fff7e8; }
 .cohort-stage.stage-5 { background: #fff1e7; }
 .cohort-stage.stage-6 { background: #f5efff; }
+.cohort-stage.empty { border-color: transparent; background: #fafcfc; color: #b9c5ca; opacity: .32; box-shadow: none; }
+.cohort-stage.empty strong { color: #aebcc2; }
+.cohort-stage.empty.open { opacity: .55; }
 .stats-retention-note { margin: 0 2px; color: #7893a1; text-align: center; font-size: 9px; }
 .days button.archived { opacity: .6; cursor: default; }
 
 @media (max-width: 430px) {
-  .public-topbar { min-height: 84px; gap: 7px 8px; padding-top: 9px; padding-bottom: 10px; }
-  .public-contact { width: 100%; padding-left: 0; }
+  .public-topbar { min-height: 68px; gap: 6px; padding: 9px 12px; }
+  .public-contact { width: auto; padding-left: 0; font-size: 8px; }
 }
 @media (max-width: 380px) {
   .equipment-grid { grid-template-columns: 1fr; }
