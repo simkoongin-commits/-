@@ -71,6 +71,7 @@ export default function Statistics({
   const [kind, setKind] = useState<PracticeKind | "all">("all");
   const [openCohortStage, setOpenCohortStage] = useState("");
   const [openMemberGroup, setOpenMemberGroup] = useState<"all" | StatisticsMember["grade"] | null>(null);
+  const [openCohortPopulation, setOpenCohortPopulation] = useState("");
   const periodKey = periodMode === "month" ? month : term;
   const monthOptions = useMemo(() => Array.from(new Set([
     currentMonthKey(),
@@ -101,7 +102,7 @@ export default function Statistics({
   const trackedAttendance = selectedArchives.reduce((sum, item) => sum + item.attendanceCount, 0);
   const trackedApplicants = selectedArchives.reduce((sum, item) => sum + item.applicantCount, 0);
   const cohortRows = Array.from(new Set(members.map((member) => member.joinTerm))).sort().reverse();
-  const cohortPopulation = cohortRows.map((cohort) => ({ cohort, members: members.filter((member) => member.joinTerm === cohort) }));
+  const cohortPopulation = cohortRows.slice().reverse().map((cohort) => ({ cohort, members: members.filter((member) => member.joinTerm === cohort) }));
   const maxCohortPopulation = Math.max(1, ...cohortPopulation.map((item) => item.members.length));
   const selectedMemberGroup = openMemberGroup === "all" ? members : openMemberGroup ? members.filter((member) => member.grade === openMemberGroup) : [];
 
@@ -152,8 +153,12 @@ export default function Statistics({
         <div className="stats-section-head"><div><small>회원 유지 현황</small><h3>입부 시기별 현재 인원</h3></div></div>
         <div className="cohort-chart" aria-label="입부 시기별 현재 회원 수 막대그래프">
           <div className="cohort-chart-y"><span>{maxCohortPopulation}</span><span>{Math.ceil(maxCohortPopulation / 2)}</span><span>0</span></div>
-          <div className="cohort-chart-scroll"><div className="cohort-bars">{cohortPopulation.map((item) => <article key={item.cohort} title={`${item.cohort} 입부 · ${item.members.length}명`}><strong>{item.members.length}</strong><div><i style={{ height: `${(item.members.length / maxCohortPopulation) * 100}%` }} /></div><span>{item.cohort}</span></article>)}</div></div>
+          <div className="cohort-chart-scroll"><div className="cohort-bars">{cohortPopulation.map((item) => <button className={openCohortPopulation === item.cohort ? "active" : ""} key={item.cohort} title={`${item.cohort} 입부 · ${item.members.length}명`} onClick={() => setOpenCohortPopulation((current) => current === item.cohort ? "" : item.cohort)}><strong>{item.members.length}</strong><div><i style={{ height: `${(item.members.length / maxCohortPopulation) * 100}%` }} /></div><span>{item.cohort}</span></button>)}</div></div>
         </div>
+        {openCohortPopulation && (() => {
+          const selected = cohortPopulation.find((item) => item.cohort === openCohortPopulation);
+          return selected && <div className="cohort-population-detail"><header><b>{selected.cohort} 입부</b><span>{selected.members.length}명</span></header><div>{selected.members.slice().sort((a, b) => a.name.localeCompare(b.name, "ko")).map((member) => <span key={member.id}><b>{member.name}</b><small>{roleLabel(member)}</small></span>)}</div></div>;
+        })()}
       </section>
 
       <section className="stats-section">
