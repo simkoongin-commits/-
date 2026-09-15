@@ -152,6 +152,7 @@ type EducationSchedule = {
   endDate: string;
   place: string;
   learnerCapacity: number;
+  target?: "novice" | "all";
   slots: Record<string, EducationSlot>;
   createdBy: string;
 };
@@ -467,6 +468,10 @@ function LoginScreen({
   };
   const register = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password.length < 6) {
+      setMessage("비밀번호는 6자리 이상 입력해주세요.");
+      return;
+    }
     setSubmitting(true);
     setMessage("");
     try {
@@ -521,7 +526,7 @@ function LoginScreen({
               onChange={(e) => setStudentId(e.target.value.replace(/\D/g, ""))}
               inputMode="numeric"
               maxLength={10}
-              placeholder="학번"
+              placeholder="2026000000"
               required
             />
           </label>
@@ -555,8 +560,10 @@ function LoginScreen({
               onChange={(e) => setPassword(e.target.value)}
               type="password"
               placeholder="비밀번호"
+              minLength={mode === "signup" ? 6 : undefined}
               required
             />
+            {mode === "signup" && <small className="field-hint">6자리 이상 입력해주세요.</small>}
           </label>
           {message && <small className="login-error">{message}</small>}
           <button className="primary" disabled={submitting}>
@@ -657,13 +664,13 @@ function PublicPortal({
   return (
     <main className="public-shell">
       <header className="public-topbar">
+        <a className="public-contact" href="mailto:simkoongin@gmail.com">문의: simkoongin@gmail.com</a>
         <a className="brand" href="#top">
           <span className="brandmark">
             <img src="/hanyang-mark.png" alt="한양대학교 마크" />
           </span>
           <b>심궁회</b>
         </a>
-        <a className="public-contact" href="mailto:simkoongin@gmail.com">문의: simkoongin@gmail.com</a>
         <div className="public-actions">
           {signedIn ? (
             <button className="member-link" onClick={onMember}>
@@ -2731,7 +2738,6 @@ export default function Home() {
           stats={practiceStats}
           archives={archivedPractices}
           hall={hallOfFame}
-          equipment={equipment}
         />
       )}
       {view === "equipment" && (
@@ -3158,7 +3164,7 @@ function Education({
         <div className="education-title-row">
           <div>
             <p className="list-label">교육 시간표</p>
-            <span>교육팀 가능 시간과 예비신사 신청 현황</span>
+            <span>교육팀 가능 시간과 교육생 신청 현황</span>
           </div>
           {canManageSchedule && (
             <button className="primary compact" onClick={() => setShowScheduleForm(true)}>
@@ -3344,16 +3350,18 @@ function ScheduleForm({
 }) {
   const [startDate, setStartDate] = useState(dateKey(mondayOf(new Date())));
   const [place, setPlace] = useState("");
+  const [target, setTarget] = useState<"novice" | "all">("novice");
   return (
     <div className="modal-back">
       <section className="modal education-modal">
         <div className="modal-head"><div><p className="eyebrow">교육 시간표</p><h2>시간표 추가</h2></div><button onClick={onClose}>×</button></div>
         <label>시작일 (월요일)<input type="date" value={startDate} onChange={(e) => setStartDate(dateKey(mondayOf(new Date(`${e.target.value}T12:00:00`))))} /></label>
         <label>장소<input value={place} onChange={(e) => setPlace(e.target.value)} placeholder="예: 동아리방" required /></label>
+        <label>교육 대상<select value={target} onChange={(e) => setTarget(e.target.value as "novice" | "all")}><option value="novice">예비신사</option><option value="all">전체 회원</option></select></label>
         <p className="form-hint">월~금, 10:00~18:00의 30분 단위 시간표가 생성됩니다.</p>
         <button className="primary" disabled={!place.trim()} onClick={() => {
           const start = new Date(`${startDate}T12:00:00`); const end = new Date(start); end.setDate(start.getDate() + 4);
-          onSave({ id: String(Date.now()), startDate, endDate: dateKey(end), place: place.trim(), learnerCapacity: 1, slots: {}, createdBy: session.id });
+          onSave({ id: String(Date.now()), startDate, endDate: dateKey(end), place: place.trim(), learnerCapacity: 1, target, slots: {}, createdBy: session.id });
         }}>시간표 만들기</button>
       </section>
     </div>
@@ -3378,29 +3386,32 @@ function ScheduleSheet({
   onDelete: () => void;
 }) {
   const dates = weekDates(schedule.startDate);
-  const isPreliminary = session.grade === "예비신사";
+  const target = schedule.target || "novice";
+  const canBeEducator = session.grade !== "예비신사";
+  const canBeLearner = target === "all" || session.grade === "예비신사";
   const learnerCapacity = Math.max(1, schedule.learnerCapacity || 1);
-  const toggle = (date: string, time: string) => {
+  const toggle = (date: string, time: string, role: "educators" | "learners") => {
     const key = slotKey(date, time);
     const current = schedule.slots[key] || { educators: [], learners: [] };
-    const isEducator = !isPreliminary;
-    const field = isEducator ? "educators" : "learners";
-    if (!isEducator && !isPreliminary) return;
-    if (!isEducator && current.educators.length === 0) return;
-    const values = current[field];
-    if (!isEducator && !values.includes(session.name) && values.length >= learnerCapacity) return;
+    if (role === "educators" && !canBeEducator) return;
+    if (role === "learners" && !canBeLearner) return;
+    if (role === "learners" && current.educators.length === 0) return;
+    const otherRole = role === "educators" ? "learners" : "educators";
+    const values = current[role];
+    if (!values.includes(session.name) && current[otherRole].includes(session.name)) return;
+    if (role === "learners" && !values.includes(session.name) && values.length >= learnerCapacity) return;
     const nextValues = values.includes(session.name) ? values.filter((name) => name !== session.name) : [...values, session.name];
-    onSave({ ...schedule, slots: { ...schedule.slots, [key]: { ...current, [field]: nextValues } } });
+    onSave({ ...schedule, slots: { ...schedule.slots, [key]: { ...current, [role]: nextValues } } });
   };
-  const preliminaryMembers = members.filter((member) => member.grade === "예비신사");
+  const learnerMembers = target === "all" ? members : members.filter((member) => member.grade === "예비신사");
   const appliedNames = new Set(Object.values(schedule.slots).flatMap((slot) => slot.learners));
   return (
     <div className="modal-back schedule-modal-back">
       <section className="modal schedule-sheet">
         <div className="modal-head"><div><p className="eyebrow">{shortScheduleLabel(schedule)}</p><h2>{schedule.place}</h2></div><button onClick={onClose}>×</button></div>
-        <div className="schedule-controls"><div className="schedule-legend"><span className="educator">교육팀</span><span className="learner">예비신사</span></div>{canManage && <label>예비신사 칸 정원<input type="number" min="1" max="20" value={learnerCapacity} onChange={(e) => onSave({ ...schedule, learnerCapacity: Math.max(1, Number(e.target.value) || 1) })} /></label>}<small>각 시간 칸에 적용됩니다. 표를 좌우로 밀어 모든 날짜를 확인하세요.</small></div>
-        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr className="educator-row"><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; const matchedForMe = Boolean(slot?.educators.length && slot.learners.length && (slot.educators.includes(session.name) || slot.learners.includes(session.name))); return <td key={key} className={matchedForMe ? "educator-cell matched-pair" : "educator-cell"}><button onClick={() => toggle(dateKey(date), time)} disabled={isPreliminary}>{slot?.educators.join("\n") || (!isPreliminary ? "+" : "")}</button></td>; })}</tr><tr className="learner-row"><th className="learner">예비신사</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="learner-cell"><button onClick={() => toggle(dateKey(date), time)} disabled={!isPreliminary || !slot?.educators.length}>{slot?.learners.join("\n") || ""}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
-        <section className="preliminary-status"><h3>예비신사 신청 현황</h3><div><article><b>신청</b>{preliminaryMembers.filter((member) => appliedNames.has(member.name)).map((member) => <span key={member.id}>{member.name}</span>) || null}</article><article><b>미신청</b>{preliminaryMembers.filter((member) => !appliedNames.has(member.name)).map((member) => <span key={member.id}>{member.name}</span>) || null}</article></div></section>
+        <div className="schedule-controls"><div className="schedule-legend"><span className="educator">교육팀</span><span className="learner">교육생</span></div>{canManage && <label>교육생 칸 정원<input type="number" min="1" max="20" value={learnerCapacity} onChange={(e) => onSave({ ...schedule, learnerCapacity: Math.max(1, Number(e.target.value) || 1) })} /></label>}<small>교육 대상: {target === "all" ? "전체 회원" : "예비신사"} · 각 시간 칸에 적용됩니다.</small></div>
+        <div className="weekly-table-wrap"><table className="weekly-table"><thead><tr><th>시간</th><th>구분</th>{dates.map((date) => <th key={dateKey(date)}>{date.getMonth() + 1}/{date.getDate()}<small>({"월화수목금"[date.getDay() - 1]})</small></th>)}</tr></thead><tbody>{educationTimes.map((time) => <Fragment key={time}><tr className="educator-row"><th rowSpan={2}>{time} - {addThirty(time)}</th><th className="educator">교육팀</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; const matchedForMe = Boolean(slot?.educators.length && slot.learners.length && (slot.educators.includes(session.name) || slot.learners.includes(session.name))); return <td key={key} className={matchedForMe ? "educator-cell matched-pair" : "educator-cell"}><button onClick={() => toggle(dateKey(date), time, "educators")} disabled={!canBeEducator}>{slot?.educators.join("\n") || (canBeEducator ? "+" : "")}</button></td>; })}</tr><tr className="learner-row"><th className="learner">교육생</th>{dates.map((date) => { const key = slotKey(dateKey(date), time); const slot = schedule.slots[key]; return <td key={key} className="learner-cell"><button onClick={() => toggle(dateKey(date), time, "learners")} disabled={!canBeLearner || !slot?.educators.length}>{slot?.learners.join("\n") || (canBeLearner && slot?.educators.length ? "+" : "")}</button></td>; })}</tr></Fragment>)}</tbody></table></div>
+        <section className="preliminary-status"><h3>교육생 신청 현황</h3><div><article><b>신청</b>{learnerMembers.filter((member) => appliedNames.has(member.name)).map((member) => <span key={member.id}>{member.name}</span>) || null}</article><article><b>미신청</b>{learnerMembers.filter((member) => !appliedNames.has(member.name)).map((member) => <span key={member.id}>{member.name}</span>) || null}</article></div></section>
         {canManage && <button className="danger-button" onClick={() => { if (window.confirm("이 시간표를 폐기할까요?")) onDelete(); }}>시간표 폐기</button>}
       </section>
     </div>

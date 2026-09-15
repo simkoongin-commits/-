@@ -17,6 +17,7 @@ import {
 } from "@/lib/equipment";
 
 type Session = { id: string; name: string; role: "관리자" | "회원"; team?: string };
+type EquipmentStatKey = "total" | "available" | "unavailable" | "rented" | "lost" | "damaged";
 export type EquipmentDraft =
   | { kind: "bow"; pound: string; length: string; side: "좌궁" | "우궁"; note?: string }
   | { kind: "arrow"; lengthWeight: string; index: string; indexNumber: string; note?: string };
@@ -107,6 +108,7 @@ export default function EquipmentManagement({
   const [rentalNotes, setRentalNotes] = useState<RentalNote[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [openStat, setOpenStat] = useState<EquipmentStatKey | null>(null);
   const canManageEquipment = session.role === "관리자" || session.team === "장비팀";
 
   const notify = (text: string) => {
@@ -146,6 +148,15 @@ export default function EquipmentManagement({
   );
   const arrowGroups = useMemo(() => groupArrows(arrows), [arrows]);
   const bowGroups = useMemo(() => groupBows(bows), [bows]);
+  const indexedEquipment = useMemo(() => assignBowIndexes(equipment), [equipment]);
+  const equipmentStats = useMemo(() => ([
+    { key: "total" as const, label: "전체", items: indexedEquipment },
+    { key: "available" as const, label: "대여 가능", items: indexedEquipment.filter((item) => item.status === "available" && item.manualAvailable) },
+    { key: "unavailable" as const, label: "대여 불가능", items: indexedEquipment.filter((item) => item.status === "available" && !item.manualAvailable) },
+    { key: "rented" as const, label: "대여 중", items: indexedEquipment.filter((item) => item.status === "rented") },
+    { key: "lost" as const, label: "분실", items: indexedEquipment.filter((item) => item.status === "lost") },
+    { key: "damaged" as const, label: "손상", items: indexedEquipment.filter((item) => item.status === "damaged") },
+  ]), [indexedEquipment]);
   const rentalBows = bows.filter((item) => item.status !== "rented");
   const rentalArrowGroups = useMemo(() => groupArrows(arrows.filter((item) => item.status !== "rented")), [arrows]);
 
@@ -184,6 +195,15 @@ export default function EquipmentManagement({
       </div>
 
       {tab === "inventory" ? <>
+        <section className="equipment-stat-panel">
+          <div className="equipment-stat-grid">
+            {equipmentStats.map((stat) => <button key={stat.key} className={openStat === stat.key ? "active" : ""} onClick={() => setOpenStat((current) => current === stat.key ? null : stat.key)}><span>{stat.label}</span><strong>{stat.items.length}<i>개</i></strong></button>)}
+          </div>
+          {openStat && (() => {
+            const selected = equipmentStats.find((stat) => stat.key === openStat)!;
+            return <div className="equipment-stat-detail"><header><b>{selected.label} 장비</b><span>{selected.items.length}개</span></header>{selected.items.length ? <div>{selected.items.map((item) => <button key={item.id} onClick={() => openEquipment(item)}><span>{item.kind === "bow" ? "활" : "화살"}</span><b>{equipmentName(item)}</b><small>{equipmentUnavailableReason(item) || "대여 가능"}</small></button>)}</div> : <p>해당하는 장비가 없어요.</p>}</div>;
+          })()}
+        </section>
         <div className="equipment-toolbar">
           <div><button className={inventoryTab === "bow" ? "active" : ""} onClick={() => setInventoryTab("bow")}>활</button><button className={inventoryTab === "arrow" ? "active" : ""} onClick={() => setInventoryTab("arrow")}>화살</button></div>
           {canManageEquipment && <button className="equipment-add" onClick={() => { setArrowPreset({}); setAdding(inventoryTab); }}>+</button>}
