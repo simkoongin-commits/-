@@ -353,6 +353,14 @@ const seedPractices: Practice[] = [
     note: "개인 활과 장비를 챙겨주세요.",
   },
 ];
+const defaultPracticePlaces = ["부천정", "난지국궁장", "살곶이정"];
+const normalizePracticePlaces = (value: unknown, practices: Practice[] = [], archives: ArchivedPractice[] = []) => {
+  const source = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [...defaultPracticePlaces, ...practices.map((practice) => practice.place), ...archives.map((practice) => practice.place)];
+  return Array.from(new Set(source.map((place) => place.trim()).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, "ko"));
+};
 
 const koDate = (date: string) => {
   const d = new Date(`${date}T12:00:00`);
@@ -1258,6 +1266,7 @@ export default function Home() {
   const [equipmentRentals, setEquipmentRentals] = useState<EquipmentRental[]>([]);
   const [archivedPractices, setArchivedPractices] = useState<ArchivedPractice[]>([]);
   const [practiceStats, setPracticeStats] = useState<PracticeStats>({});
+  const [practicePlaces, setPracticePlaces] = useState<string[]>(defaultPracticePlaces);
   const [menuOpen, setMenuOpen] = useState(false);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
@@ -1371,6 +1380,7 @@ export default function Home() {
           equipmentRentals: [],
           archivedPractices: [],
           practiceStats: {},
+          practicePlaces: defaultPracticePlaces,
           }).catch(() => {
             setAccessError(
               "공동 일정판을 준비하지 못했어요. 다시 로그인한 뒤 시도해주세요.",
@@ -1381,6 +1391,9 @@ export default function Home() {
         }
         const data = snapshot.data();
         const storedEquipment = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
+        const storedPractices = preparePractices(data.practices);
+        const storedArchives = Array.isArray(data.archivedPractices) ? data.archivedPractices as ArchivedPractice[] : [];
+        const storedPlaces = normalizePracticePlaces(data.practicePlaces, storedPractices, storedArchives);
         const indexedEquipment = assignBowIndexes(storedEquipment);
         if (JSON.stringify(indexedEquipment) !== JSON.stringify(storedEquipment)) {
           void setDoc(clubDoc, { equipment: indexedEquipment }, { merge: true });
@@ -1397,7 +1410,7 @@ export default function Home() {
         const studentId = authUser.email?.split("@")[0];
         if (members.length === 0 && studentId) {
           const emptyState = {
-            practices: preparePractices(data.practices),
+            practices: storedPractices,
             members: [],
             currentTerm: term,
             copyFormats: { ...defaultCopyFormats, ...(data.copyFormats || {}) },
@@ -1412,8 +1425,9 @@ export default function Home() {
             hallOfFame: normalizeHall(data.hallOfFame as StoredHallOfFame | undefined),
             equipment: indexedEquipment,
             equipmentRentals: Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [],
-            archivedPractices: Array.isArray(data.archivedPractices) ? data.archivedPractices as ArchivedPractice[] : [],
+            archivedPractices: storedArchives,
             practiceStats: normalizePracticeStats(data.practiceStats),
+            practicePlaces: storedPlaces,
           };
           cloudState.current = JSON.stringify(emptyState);
           setPractices(emptyState.practices);
@@ -1424,6 +1438,7 @@ export default function Home() {
           setEquipmentRentals(emptyState.equipmentRentals);
           setArchivedPractices(emptyState.archivedPractices);
           setPracticeStats(emptyState.practiceStats);
+          setPracticePlaces(emptyState.practicePlaces);
           setNeedsBootstrap(true);
           setReady(true);
           return;
@@ -1436,7 +1451,7 @@ export default function Home() {
           return;
         }
         const next = {
-          practices: preparePractices(data.practices),
+          practices: storedPractices,
           members,
           currentTerm: term,
           copyFormats: { ...defaultCopyFormats, ...(data.copyFormats || {}) },
@@ -1453,8 +1468,9 @@ export default function Home() {
           hallOfFame: normalizeHall(data.hallOfFame as StoredHallOfFame | undefined),
           equipment: indexedEquipment,
           equipmentRentals: Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [],
-          archivedPractices: Array.isArray(data.archivedPractices) ? data.archivedPractices as ArchivedPractice[] : [],
+          archivedPractices: storedArchives,
           practiceStats: normalizePracticeStats(data.practiceStats),
+          practicePlaces: storedPlaces,
         };
         cloudState.current = JSON.stringify(next);
         setPractices(next.practices);
@@ -1470,6 +1486,7 @@ export default function Home() {
         setEquipmentRentals(next.equipmentRentals);
         setArchivedPractices(next.archivedPractices);
         setPracticeStats(next.practiceStats);
+        setPracticePlaces(next.practicePlaces);
         setSession(member);
         if (initializedMemberViewFor.current !== authUser.uid) {
           initializedMemberViewFor.current = authUser.uid;
@@ -1502,6 +1519,7 @@ export default function Home() {
       equipmentRentals,
       archivedPractices,
       practiceStats,
+      practicePlaces,
     });
     if (cloudState.current === next) return;
     cloudState.current = next;
@@ -1519,13 +1537,14 @@ export default function Home() {
       equipmentRentals,
       archivedPractices,
       practiceStats,
+      practicePlaces,
     }).catch(() => {
       cloudState.current = "";
       setAccessError(
         "공동 데이터 저장에 실패했어요. 잠시 후 다시 시도해주세요.",
       );
     });
-  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, practiceStats, ready, authUser]);
+  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, practiceStats, practicePlaces, ready, authUser]);
   useEffect(() => {
     if (!ready || !authUser) return;
     const cleanExpiredRentals = async () => {
@@ -1578,7 +1597,7 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [ready, authUser]);
   const finishBootstrap = async (member: Member) => {
-    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, practiceStats };
+    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, practiceStats, practicePlaces };
     try {
       await setDoc(doc(db, "clubs", "simgunghoe"), next);
       cloudState.current = JSON.stringify(next);
@@ -1750,7 +1769,13 @@ export default function Home() {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
     });
-    const result = await response.json() as { error?: string };
+    const responseText = await response.text();
+    let result: { error?: string } = {};
+    try {
+      result = responseText ? JSON.parse(responseText) as { error?: string } : {};
+    } catch {
+      if (!response.ok) throw new Error("계정 삭제 서버에 일시적인 오류가 있어요. 배포가 완료된 뒤 다시 시도해주세요.");
+    }
     if (!response.ok) throw new Error(result.error || "계정을 삭제하지 못했어요.");
   };
   const requestQaChange = async (
@@ -1844,7 +1869,7 @@ export default function Home() {
       const rentalId = makeEquipmentId();
       const nextEquipment = current.map((item) => {
         if (!itemIds.includes(item.id)) return item;
-        return { ...item, status: "rented", holderId: session.id, holderName: session.name, activeRentalId: rentalId } as Equipment;
+        return { ...item, status: "rented", holderId: session.id, holderName: session.name, activeRentalId: rentalId, rentalCount: (item.rentalCount || 0) + 1 } as Equipment;
       });
       const rental: EquipmentRental = { id: rentalId, memberId: session.id, memberName: session.name, loanDate, itemIds, notes: [], status: "active", createdAt: new Date().toISOString() };
       transaction.set(clubRef, { equipment: nextEquipment, equipmentRentals: [...currentRentals, rental] }, { merge: true });
@@ -2839,6 +2864,9 @@ export default function Home() {
         <PracticeForm
           initial={editing || undefined}
           nextRegularRound={nextRegularRound}
+          places={practicePlaces}
+          canManagePlaces={session.role === "관리자" || session.grade === "신사" || session.grade === "구사"}
+          onPlaces={setPracticePlaces}
           onClose={() => {
             setShowForm(false);
             setEditing(null);
@@ -3928,11 +3956,17 @@ const timetableItems = (timetable?: string) => {
 function PracticeForm({
   initial,
   nextRegularRound,
+  places,
+  canManagePlaces,
+  onPlaces,
   onClose,
   onSave,
 }: {
   initial?: Practice;
   nextRegularRound: number;
+  places: string[];
+  canManagePlaces: boolean;
+  onPlaces: (places: string[]) => void;
   onClose: () => void;
   onSave: (p: Omit<Practice, "id" | "applicants">) => void;
 }) {
@@ -3944,6 +3978,10 @@ function PracticeForm({
   const [scheduleItems, setScheduleItems] = useState(() =>
     timetableItems(initial?.timetable),
   );
+  const availablePlaces = Array.from(new Set([...places, ...(initial?.place ? [initial.place] : [])]));
+  const [selectedPlace, setSelectedPlace] = useState(initial?.place || availablePlaces[0] || "");
+  const [showPlaceManager, setShowPlaceManager] = useState(false);
+  const [newPlace, setNewPlace] = useState("");
   const localToday = new Date();
   const todayDate = `${localToday.getFullYear()}-${String(localToday.getMonth() + 1).padStart(2, "0")}-${String(localToday.getDate()).padStart(2, "0")}`;
   const submit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -4076,10 +4114,10 @@ function PracticeForm({
           </label>
         </div>
         <div className="form-row">
-          <label>
-            장소
-            <input name="place" required defaultValue={initial?.place || ""} />
-          </label>
+          <div className="place-field">
+            <label>장소<select name="place" required value={selectedPlace} onChange={(event) => setSelectedPlace(event.target.value)}><option value="" disabled>장소를 선택해주세요</option>{availablePlaces.map((place) => <option key={place}>{place}</option>)}</select></label>
+            {canManagePlaces && <button type="button" className="place-manage-button" onClick={() => setShowPlaceManager((current) => !current)}>장소 추가</button>}
+          </div>
           {type === "regular" && (
             <label>
               인솔자
@@ -4087,6 +4125,7 @@ function PracticeForm({
             </label>
           )}
         </div>
+        {showPlaceManager && canManagePlaces && <section className="place-manager"><div><input value={newPlace} onChange={(event) => setNewPlace(event.target.value)} placeholder="새 장소 이름" /><button type="button" onClick={() => { const value = newPlace.trim(); if (!value || places.includes(value)) return; onPlaces([...places, value].sort((a, b) => a.localeCompare(b, "ko"))); setSelectedPlace(value); setNewPlace(""); }}>추가</button></div><div className="place-manager-list">{places.map((place) => <span key={place}><b>{place}</b><button type="button" aria-label={`${place} 삭제`} onClick={() => { if (!window.confirm(`${place}을(를) 장소 선택지에서 삭제할까요? 기존 습사 기록은 유지됩니다.`)) return; const next = places.filter((item) => item !== place); onPlaces(next); if (selectedPlace === place) setSelectedPlace(next[0] || ""); }}>×</button></span>)}</div></section>}
         {type === "regular" && (
           <div className="timetable-editor">
             <b>시간별 일정</b>

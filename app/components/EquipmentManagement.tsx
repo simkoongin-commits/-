@@ -157,6 +157,12 @@ export default function EquipmentManagement({
     { key: "lost" as const, label: "분실", items: indexedEquipment.filter((item) => item.status === "lost") },
     { key: "damaged" as const, label: "손상", items: indexedEquipment.filter((item) => item.status === "damaged") },
   ]), [indexedEquipment]);
+  const equipmentUsage = useMemo(() => indexedEquipment.map((item) => {
+    const recordedRentals = rentals.filter((rental) => rental.itemIds.includes(item.id)).length;
+    return { item, count: Math.max(item.rentalCount || 0, recordedRentals) };
+  }).sort((a, b) => b.count - a.count || equipmentName(a.item).localeCompare(equipmentName(b.item), "ko", { numeric: true })), [indexedEquipment, rentals]);
+  const totalEquipmentUsage = equipmentUsage.reduce((sum, entry) => sum + entry.count, 0);
+  const maxEquipmentUsage = Math.max(1, ...equipmentUsage.map((entry) => entry.count));
   const rentalBows = bows.filter((item) => item.status !== "rented");
   const rentalArrowGroups = useMemo(() => groupArrows(arrows.filter((item) => item.status !== "rented")), [arrows]);
 
@@ -204,13 +210,18 @@ export default function EquipmentManagement({
             return <EquipmentStatDetail label={selected.label} items={selected.items} onOpen={openEquipment} />;
           })()}
         </section>
+        <section className="equipment-usage-panel">
+          <header><div><small>누적 대여</small><h3>장비 이용률</h3></div><strong>{totalEquipmentUsage}<i>회</i></strong></header>
+          {equipmentUsage.length ? <div>{equipmentUsage.map(({ item, count }) => <button key={item.id} onClick={() => openEquipment(item)}><span>{item.kind === "bow" ? "활" : "화살"}</span><div><b>{equipmentName(item)}</b><i><em style={{ width: `${(count / maxEquipmentUsage) * 100}%` }} /></i></div><strong>{count}회</strong></button>)}</div> : <Empty text="등록된 장비가 없어요." />}
+          <p>새 대여 기록부터 장비별 누적 이용 횟수에 반영돼요.</p>
+        </section>
         <div className="equipment-toolbar">
           <div><button className={inventoryTab === "bow" ? "active" : ""} onClick={() => setInventoryTab("bow")}>활</button><button className={inventoryTab === "arrow" ? "active" : ""} onClick={() => setInventoryTab("arrow")}>화살</button></div>
           {canManageEquipment && <button className="equipment-add" onClick={() => { setArrowPreset({}); setAdding(inventoryTab); }}>+</button>}
         </div>
         {inventoryTab === "bow" ? <div className="bow-inventory">
           <div className="equipment-count"><span>전체 활</span><strong>{bows.length}개</strong></div>
-          {bowGroups.size ? <div className="bow-tree">{[...bowGroups].map(([group, items]) => { const sample = items[0]; return items.length === 1 ? <EquipmentCard key={group} item={sample} onClick={() => openEquipment(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {items.length}개</small></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>; })}</div> : <Empty text="등록된 활이 없어요." />}
+          {bowGroups.size ? <div className="bow-tree">{[...bowGroups].map(([group, items]) => { const sample = items[0]; return items.length === 1 ? <EquipmentCard key={group} item={sample} compact onClick={() => openEquipment(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {items.length}개</small></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>; })}</div> : <Empty text="등록된 활이 없어요." />}
         </div> : <div className="arrow-tree">
           {arrowGroups.size ? [...arrowGroups].map(([group, indexes]) => <details key={group}><summary><span>{group}</span><span className="arrow-summary-actions"><small>{[...indexes.values()].flat().length}개</small>{canManageEquipment && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group }); setAdding("arrow"); }}>+</button>}</span></summary><div>{[...indexes].map(([index, items]) => <details key={index}><summary><span>{index}</span><span className="arrow-summary-actions"><small>{items.length}개</small>{canManageEquipment && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group, index }); setAdding("arrow"); }}>+</button>}</span></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>)}</div></details>) : <Empty text="등록된 화살이 없어요." />}
         </div>}
@@ -255,7 +266,7 @@ function EquipmentStatDetail({ label, items, onOpen }: { label: string; items: E
   const statBowGroups = groupBows(statBows);
   const statArrowGroups = groupArrows(statArrows);
   return <div className="equipment-stat-detail"><header><b>{label} 장비</b><span>{items.length}개</span></header>{items.length ? <div className="equipment-stat-kinds">
-    {statBows.length > 0 && <section><h4>활 <small>{statBows.length}개</small></h4><div className="bow-tree">{[...statBowGroups].map(([group, bows]) => { const sample = bows[0]; return bows.length === 1 ? <EquipmentCard key={group} item={sample} onClick={() => onOpen(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {bows.length}개</small></summary><div className="equipment-grid">{bows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>; })}</div></section>}
+    {statBows.length > 0 && <section><h4>활 <small>{statBows.length}개</small></h4><div className="bow-tree">{[...statBowGroups].map(([group, bows]) => { const sample = bows[0]; return bows.length === 1 ? <EquipmentCard key={group} item={sample} compact onClick={() => onOpen(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {bows.length}개</small></summary><div className="equipment-grid">{bows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>; })}</div></section>}
     {statArrows.length > 0 && <section><h4>화살 <small>{statArrows.length}개</small></h4><div className="arrow-tree">{[...statArrowGroups].map(([group, indexes]) => <details key={group}><summary><span>{group}</span><small>{[...indexes.values()].flat().length}개</small></summary><div>{[...indexes].map(([index, arrows]) => <details key={index}><summary><span>{index}</span><small>{arrows.length}개</small></summary><div className="equipment-grid">{arrows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>)}</div></details>)}</div></section>}
   </div> : <p>해당하는 장비가 없어요.</p>}</div>;
 }
@@ -270,9 +281,9 @@ function RentalNoteSummary({ note, equipment }: { note: RentalNote; equipment: E
   return <span className="rental-note-summary"><b>{noteLabel[note.type]}</b>{note.type === "custom" ? <small>{note.text}</small> : groupedEquipmentLabels(selected).map((label) => <small key={label}>{label}</small>)}{note.type === "damaged" && selected.map((item) => note.details?.[item.id] ? <small key={`${note.id}-${item.id}`}>{equipmentName(item)}: {note.details[item.id]}</small> : null)}</span>;
 }
 
-function EquipmentCard({ item, onClick }: { item: Equipment; onClick: () => void }) {
+function EquipmentCard({ item, compact = false, onClick }: { item: Equipment; compact?: boolean; onClick: () => void }) {
   const reason = equipmentUnavailableReason(item);
-  return <button className={`equipment-card ${reason ? "unavailable" : ""}`} onClick={onClick}><span>{item.kind === "bow" ? "활" : "화살"}</span><b>{equipmentName(item)}</b><small>{reason || "대여 가능"}{item.holderName ? ` · ${item.holderName}` : ""}</small></button>;
+  return <button className={`equipment-card ${compact ? "compact-bow" : ""} ${reason ? "unavailable" : ""}`} onClick={onClick}><span>{item.kind === "bow" ? "활" : "화살"}</span><b>{equipmentName(item)}</b><small>{reason || "대여 가능"}{item.holderName ? ` · ${item.holderName}` : ""}</small></button>;
 }
 
 function NoteEditor({ notes, setNotes, availableIds, equipment, onAdd }: { notes: RentalNote[]; setNotes: (next: RentalNote[]) => void; availableIds: string[]; equipment: Equipment[]; onAdd: (type: RentalNoteType) => void }) {

@@ -1,7 +1,3 @@
-import { cert, getApps, initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
-
 export type StoredMember = {
   id: string;
   name?: string;
@@ -11,7 +7,12 @@ export type StoredMember = {
   position?: string;
 };
 
-export const getAdminServices = () => {
+export const getAdminServices = async () => {
+  const [{ cert, getApps, initializeApp }, { getAuth }, { getFirestore }] = await Promise.all([
+    import("firebase-admin/app"),
+    import("firebase-admin/auth"),
+    import("firebase-admin/firestore"),
+  ]);
   const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n");
@@ -27,7 +28,7 @@ export const getAdminServices = () => {
 export const authenticatedMember = async (authorization: string | null) => {
   const token = authorization?.startsWith("Bearer ") ? authorization.slice(7) : "";
   if (!token) return null;
-  const { adminAuth, adminDb } = getAdminServices();
+  const { adminAuth, adminDb } = await getAdminServices();
   const decoded = await adminAuth.verifyIdToken(token);
   const studentId = decoded.email?.split("@")[0];
   if (!studentId) return null;

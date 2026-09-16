@@ -105,6 +105,29 @@ export default function Statistics({
   const cohortPopulation = cohortRows.slice().reverse().map((cohort) => ({ cohort, members: members.filter((member) => member.joinTerm === cohort) }));
   const maxCohortPopulation = Math.max(1, ...cohortPopulation.map((item) => item.members.length));
   const selectedMemberGroup = openMemberGroup === "all" ? members : openMemberGroup ? members.filter((member) => member.grade === openMemberGroup) : [];
+  const monthlyActivity = Array.from(archives.reduce((groups, practice) => {
+    const month = practice.date.slice(0, 7);
+    const current = groups.get(month) || { month, practices: 0, trackedPractices: 0, attendance: 0 };
+    current.practices += 1;
+    if (practice.tracked) {
+      current.trackedPractices += 1;
+      current.attendance += practice.attendanceCount;
+    }
+    groups.set(month, current);
+    return groups;
+  }, new Map<string, { month: string; practices: number; trackedPractices: number; attendance: number }>()).values()).sort((a, b) => a.month.localeCompare(b.month)).slice(-12);
+  const maxMonthlyAttendance = Math.max(1, ...monthlyActivity.map((item) => item.attendance));
+  const placeActivity = Array.from(archives.reduce((groups, practice) => {
+    const place = practice.place || "장소 미정";
+    const current = groups.get(place) || { place, practices: 0, trackedPractices: 0, attendance: 0 };
+    current.practices += 1;
+    if (practice.tracked) {
+      current.trackedPractices += 1;
+      current.attendance += practice.attendanceCount;
+    }
+    groups.set(place, current);
+    return groups;
+  }, new Map<string, { place: string; practices: number; trackedPractices: number; attendance: number }>()).values()).sort((a, b) => b.attendance - a.attendance || b.practices - a.practices || a.place.localeCompare(b.place, "ko"));
 
   return (
     <section className="content statistics-page">
@@ -119,6 +142,16 @@ export default function Statistics({
           <article><small>신청 이행률</small><strong>{percentage(myTotal.attended, myTotal.applied)}<i>%</i></strong></article>
         </div>
         <p>{session.joinTerm} 입부 · 정규 {myTotal.regular}회 · 자유 {myTotal.general}회 · 대회 {myTotal.competition}회</p>
+      </section>
+
+      <section className="stats-section">
+        <div className="stats-section-head"><div><small>활동 추이</small><h3>월별 습사 활동</h3></div><span className="stats-range-note">최근 12개월</span></div>
+        {monthlyActivity.length ? <div className="monthly-activity-list">{monthlyActivity.map((item) => <article key={item.month}><header><b>{item.month.replace("-", ". ")}</b><span>습사 {item.practices}회 · 출석 {item.attendance}명 · 평균 {item.trackedPractices ? (item.attendance / item.trackedPractices).toFixed(1) : "-"}명</span></header><div><i style={{ width: `${(item.attendance / maxMonthlyAttendance) * 100}%` }} /></div></article>)}</div> : <p className="stats-empty-card">아직 보관된 월별 활동 기록이 없어요.</p>}
+      </section>
+
+      <section className="stats-section">
+        <div className="stats-section-head"><div><small>장소 통계</small><h3>장소별 참여 현황</h3></div></div>
+        {placeActivity.length ? <div className="place-stat-list">{placeActivity.map((item) => <article key={item.place}><div><b>{item.place}</b><small>습사 {item.practices}회</small></div><strong>{item.attendance}<i>명</i></strong><span>평균 {item.trackedPractices ? (item.attendance / item.trackedPractices).toFixed(1) : "-"}명</span></article>)}</div> : <p className="stats-empty-card">아직 보관된 장소별 기록이 없어요.</p>}
       </section>
 
       <section className="stats-section">
