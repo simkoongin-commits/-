@@ -3501,6 +3501,8 @@ function CalendarEventForm({
 function HallOfFameView({ hall, members, editable, onChange }: { hall: HallOfFame; members: Member[]; editable: boolean; onChange: (hall: HallOfFame) => void }) {
   const icons = ["🎉", "👑", "🥉", "🥈", "🥇", "🏆"];
   const captureRef = useRef<HTMLDivElement>(null);
+  const assignedMemberIds = new Set(hallRanks.flatMap((rank) => hall[rank]));
+  const availableMembers = members.filter((member) => !assignedMemberIds.has(member.id));
   const saveImage = async () => {
     if (!captureRef.current) return;
     const dataUrl = await toPng(captureRef.current, { cacheBust: true, pixelRatio: 2, filter: (node) => !(node instanceof HTMLElement && node.classList.contains("hall-admin-control")) });
@@ -3517,7 +3519,7 @@ function HallOfFameView({ hall, members, editable, onChange }: { hall: HallOfFam
     next[rank] = [...next[rank], memberId];
     onChange(next);
   };
-  return <section className="content hall-page"><div className="hall-paper" ref={captureRef}><header><h2>명예의 전당</h2></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button className="hall-admin-control" aria-label="삭제" onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : <small>아직 기록된 회원이 없어요</small>}</p></div>{editable && <select className="hall-admin-control" value="" onChange={(e) => { if (!e.target.value) return; moveMember(e.target.value, rank); }}><option value="">추가/이동</option>{members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div><button className="hall-save-image" onClick={() => void saveImage()}>이미지 저장</button></section>;
+  return <section className="content hall-page"><div className="hall-paper" ref={captureRef}><header><h2>명예의 전당</h2></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button className="hall-admin-control" aria-label="삭제" onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : <small>아직 기록된 회원이 없어요</small>}</p></div>{editable && <select className="hall-admin-control" value="" disabled={!availableMembers.length} onChange={(e) => { if (!e.target.value) return; moveMember(e.target.value, rank); }}><option value="">{availableMembers.length ? "추가" : "추가 가능 없음"}</option>{availableMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div><button className="hall-save-image" onClick={() => void saveImage()}>이미지 저장</button></section>;
 }
 
 function Calendar({
@@ -3643,6 +3645,7 @@ function Members({
   const [teamSelections, setTeamSelections] = useState<Partial<Record<TeamName, string>>>({});
   const [cleanupStudentId, setCleanupStudentId] = useState("");
   const [cleanupBusy, setCleanupBusy] = useState(false);
+  const unassignedTeamMembers = members.filter((member) => !memberTeam(member));
   const [termYear, termSemester] = currentTerm.split("-").map(Number);
   const moveTerm = (direction: 1 | -1) => {
     const nextSemester = termSemester + direction;
@@ -3754,15 +3757,17 @@ function Members({
                     <div className="team-assign-control">
                       <select value={selectedId} onChange={(event) => setTeamSelections((current) => ({ ...current, [team]: event.target.value }))} aria-label={`${team} 회원 선택`}>
                         <option value="">회원 선택</option>
-                        {members.filter((member) => memberTeam(member) !== team).map((member) => <option key={member.id} value={member.id}>{member.name}{memberTeam(member) ? ` · ${memberTeam(member)}` : ""}</option>)}
+                        {unassignedTeamMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
                       </select>
                       <button disabled={!selectedId} onClick={() => {
                         const member = members.find((item) => item.id === selectedId);
                         if (!member) return;
-                        const currentTeam = memberTeam(member);
-                        if (currentTeam && !window.confirm(`${member.name}님을 ${currentTeam}에서 ${team}(으)로 이동할까요?`)) return;
+                        if (memberTeam(member)) {
+                          setTeamSelections((current) => ({ ...current, [team]: "" }));
+                          return;
+                        }
                         onTeamChange(member.id, team);
-                        setTeamSelections((current) => ({ ...current, [team]: "" }));
+                        setTeamSelections({});
                       }}>추가</button>
                     </div>
                   )}
