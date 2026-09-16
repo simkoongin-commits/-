@@ -1267,6 +1267,7 @@ export default function Home() {
   const [archivedPractices, setArchivedPractices] = useState<ArchivedPractice[]>([]);
   const [practiceStats, setPracticeStats] = useState<PracticeStats>({});
   const [practicePlaces, setPracticePlaces] = useState<string[]>(defaultPracticePlaces);
+  const [attendanceOverrides, setAttendanceOverrides] = useState<Record<string, boolean>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
@@ -2058,8 +2059,22 @@ export default function Home() {
       notify("신사·구사·관리자만 출석을 확인할 수 있어요");
       return;
     }
+    const targetPractice = practices.find((practice) => practice.id === practiceId);
+    if (!targetPractice) {
+      notify("이미 정리된 습사예요.");
+      return;
+    }
+    if (Date.now() < new Date(`${targetPractice.date}T${targetPractice.start}`).getTime()) {
+      notify("습사 시작 시간부터 출석체크할 수 있어요.");
+      return;
+    }
+    const overrideKey = `${practiceId}:${memberId}`;
+    if (Object.prototype.hasOwnProperty.call(attendanceOverrides, overrideKey)) return;
+    const shouldAttend = !(targetPractice.attendeeIds || []).includes(memberId);
+    setAttendanceOverrides((current) => ({ ...current, [overrideKey]: shouldAttend }));
     const clubRef = doc(db, "clubs", "simgunghoe");
     try {
+      let committedAttendeeIds: string[] = [];
       await runTransaction(db, async (transaction) => {
         const snapshot = await transaction.get(clubRef);
         if (!snapshot.exists()) throw new Error("습사 정보를 불러오지 못했어요.");
@@ -2068,14 +2083,24 @@ export default function Home() {
         if (!target) throw new Error("이미 정리된 습사예요.");
         if (Date.now() < new Date(`${target.date}T${target.start}`).getTime()) throw new Error("습사 시작 시간부터 출석체크할 수 있어요.");
         const attendeeIds = new Set(target.attendeeIds || []);
-        if (attendeeIds.has(memberId)) attendeeIds.delete(memberId);
-        else attendeeIds.add(memberId);
+        if (shouldAttend) attendeeIds.add(memberId);
+        else attendeeIds.delete(memberId);
+        committedAttendeeIds = [...attendeeIds];
         transaction.set(clubRef, {
-          practices: current.map((practice) => practice.id === practiceId ? { ...practice, attendanceTracking: true, attendeeIds: [...attendeeIds] } : practice),
+          practices: current.map((practice) => practice.id === practiceId ? { ...practice, attendanceTracking: true, attendeeIds: committedAttendeeIds } : practice),
         }, { merge: true });
       });
+      setPractices((current) => current.map((practice) => practice.id === practiceId
+        ? { ...practice, attendanceTracking: true, attendeeIds: committedAttendeeIds }
+        : practice));
     } catch (error) {
       notify(error instanceof Error ? error.message : "출석 상태를 변경하지 못했어요.");
+    } finally {
+      setAttendanceOverrides((current) => {
+        const next = { ...current };
+        delete next[overrideKey];
+        return next;
+      });
     }
   };
   const confirmCancellation = () => {
@@ -2786,6 +2811,7 @@ export default function Home() {
           practice={practices.find((practice) => practice.id === participantPracticeId)!}
           members={clubMembers}
           session={session}
+          attendanceOverrides={attendanceOverrides}
           onToggleAttendance={(memberId) => void toggleAttendance(participantPracticeId, memberId)}
           onClose={() => setParticipantPracticeId(null)}
         />
@@ -3094,12 +3120,14 @@ function Participants({
   practice,
   members,
   session,
+  attendanceOverrides,
   onToggleAttendance,
   onClose,
 }: {
   practice: Practice;
   members: Member[];
   session: Member;
+  attendanceOverrides: Record<string, boolean>;
   onToggleAttendance: (memberId: string) => void;
   onClose: () => void;
 }) {
@@ -3108,7 +3136,10 @@ function Participants({
   const attendeeIds = new Set(practice.attendeeIds || []);
   const rows = practice.applicants.map((name, index) => {
     const member = members.find((item) => item.name === name);
-    return { name, index, member, attended: Boolean(member && attendeeIds.has(member.id)) };
+    const overrideKey = member ? `${practice.id}:${member.id}` : "";
+    const pending = Boolean(member && Object.prototype.hasOwnProperty.call(attendanceOverrides, overrideKey));
+    const attended = member ? (pending ? attendanceOverrides[overrideKey] : attendeeIds.has(member.id)) : false;
+    return { name, index, member, attended, pending };
   }).sort((a, b) => Number(a.attended) - Number(b.attended) || a.index - b.index);
   return (
     <div
@@ -3126,7 +3157,7 @@ function Participants({
         <p className="attendance-guide">{started ? canCheck ? "체크된 회원은 목록 아래로 이동해요." : "신사·구사·관리자가 출석을 확인할 수 있어요." : `${practice.start}부터 출석체크가 열려요.`}</p>
         <div className="participant-list">
           {practice.applicants.length ? (
-            rows.map(({ name, index, member, attended }) => {
+            rows.map(({ name, index, member, attended, pending }) => {
               return (
                 <div key={`${name}-${index}`} className={attended ? "attended" : ""}>
                   <span className="avatar">{name[0]}</span>
@@ -3138,7 +3169,7 @@ function Participants({
                         : member?.grade || "회원"}
                     </small>
                   </div>
-                  {started && member ? <label className="attendance-check"><input type="checkbox" checked={attended} disabled={!canCheck} onChange={() => onToggleAttendance(member.id)} /><span>{attended ? "출석" : "확인"}</span></label> : <span>{index + 1}</span>}
+                  {started && member ? <label className={`attendance-check ${pending ? "saving" : ""}`}><input type="checkbox" checked={attended} disabled={!canCheck || pending} onChange={() => onToggleAttendance(member.id)} /><span>{pending ? "저장 중" : attended ? "출석" : "확인"}</span></label> : <span>{index + 1}</span>}
                 </div>
               );
             })
