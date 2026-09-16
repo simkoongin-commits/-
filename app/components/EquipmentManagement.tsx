@@ -157,12 +157,24 @@ export default function EquipmentManagement({
     { key: "lost" as const, label: "분실", items: indexedEquipment.filter((item) => item.status === "lost") },
     { key: "damaged" as const, label: "손상", items: indexedEquipment.filter((item) => item.status === "damaged") },
   ]), [indexedEquipment]);
-  const equipmentUsage = useMemo(() => indexedEquipment.map((item) => {
+  const equipmentUsageCounts = useMemo(() => new Map(indexedEquipment.map((item) => {
     const recordedRentals = rentals.filter((rental) => rental.itemIds.includes(item.id)).length;
-    return { item, count: Math.max(item.rentalCount || 0, recordedRentals) };
-  }).sort((a, b) => b.count - a.count || equipmentName(a.item).localeCompare(equipmentName(b.item), "ko", { numeric: true })), [indexedEquipment, rentals]);
-  const totalEquipmentUsage = equipmentUsage.reduce((sum, entry) => sum + entry.count, 0);
-  const maxEquipmentUsage = Math.max(1, ...equipmentUsage.map((entry) => entry.count));
+    return [item.id, Math.max(item.rentalCount || 0, recordedRentals)] as const;
+  })), [indexedEquipment, rentals]);
+  const usageBows = useMemo(() => indexedEquipment.filter((item): item is BowEquipment => item.kind === "bow").sort((a, b) => {
+    const poundDifference = Number.parseFloat(a.pound) - Number.parseFloat(b.pound);
+    return (Number.isNaN(poundDifference) ? a.pound.localeCompare(b.pound, "ko", { numeric: true }) : poundDifference) ||
+      (a.indexNumber || 0) - (b.indexNumber || 0) ||
+      a.length.localeCompare(b.length, "ko", { numeric: true }) ||
+      a.side.localeCompare(b.side, "ko");
+  }), [indexedEquipment]);
+  const usageArrows = useMemo(() => indexedEquipment.filter((item): item is ArrowEquipment => item.kind === "arrow").sort((a, b) =>
+    a.lengthWeight.localeCompare(b.lengthWeight, "ko", { numeric: true }) ||
+    a.index.localeCompare(b.index, "ko", { numeric: true }) ||
+    a.indexNumber.localeCompare(b.indexNumber, "ko", { numeric: true })), [indexedEquipment]);
+  const usageArrowGroups = useMemo(() => groupArrows(usageArrows), [usageArrows]);
+  const totalEquipmentUsage = Array.from(equipmentUsageCounts.values()).reduce((sum, count) => sum + count, 0);
+  const maxEquipmentUsage = Math.max(1, ...equipmentUsageCounts.values());
   const rentalBows = bows.filter((item) => item.status !== "rented");
   const rentalArrowGroups = useMemo(() => groupArrows(arrows.filter((item) => item.status !== "rented")), [arrows]);
 
@@ -210,11 +222,16 @@ export default function EquipmentManagement({
             return <EquipmentStatDetail label={selected.label} items={selected.items} onOpen={openEquipment} />;
           })()}
         </section>
-        <section className="equipment-usage-panel">
-          <header><div><small>누적 대여</small><h3>장비 이용률</h3></div><strong>{totalEquipmentUsage}<i>회</i></strong></header>
-          {equipmentUsage.length ? <div>{equipmentUsage.map(({ item, count }) => <button key={item.id} onClick={() => openEquipment(item)}><span>{item.kind === "bow" ? "활" : "화살"}</span><div><b>{equipmentName(item)}</b><i><em style={{ width: `${(count / maxEquipmentUsage) * 100}%` }} /></i></div><strong>{count}회</strong></button>)}</div> : <Empty text="등록된 장비가 없어요." />}
-          <p>새 대여 기록부터 장비별 누적 이용 횟수에 반영돼요.</p>
-        </section>
+        <details className="equipment-usage-panel">
+          <summary><div><small>누적 대여</small><h3>장비 이용률</h3></div><span><strong>{totalEquipmentUsage}<i>회</i></strong><em>펼쳐보기</em></span></summary>
+          <div className="equipment-usage-content">
+            {indexedEquipment.length ? <>
+              {usageBows.length > 0 && <section><h4>활 <small>{usageBows.length}개 · 파운드 순</small></h4><div className="equipment-usage-list">{usageBows.map((item) => <EquipmentUsageRow key={item.id} item={item} count={equipmentUsageCounts.get(item.id) || 0} max={maxEquipmentUsage} onClick={() => openEquipment(item)} />)}</div></section>}
+              {usageArrows.length > 0 && <section><h4>화살 <small>{usageArrows.length}개</small></h4><div className="equipment-usage-tree">{[...usageArrowGroups].map(([lengthWeight, indexes]) => <details key={lengthWeight}><summary><span>{lengthWeight}</span><small>{[...indexes.values()].flat().length}개</small></summary><div>{[...indexes].map(([index, items]) => <details key={index}><summary><span>{index}</span><small>{items.length}개</small></summary><div className="equipment-usage-list">{items.map((item) => <EquipmentUsageRow key={item.id} item={item} count={equipmentUsageCounts.get(item.id) || 0} max={maxEquipmentUsage} onClick={() => openEquipment(item)} />)}</div></details>)}</div></details>)}</div></section>}
+            </> : <Empty text="등록된 장비가 없어요." />}
+            <p>새 대여 기록부터 장비별 누적 이용 횟수에 반영돼요.</p>
+          </div>
+        </details>
         <div className="equipment-toolbar">
           <div><button className={inventoryTab === "bow" ? "active" : ""} onClick={() => setInventoryTab("bow")}>활</button><button className={inventoryTab === "arrow" ? "active" : ""} onClick={() => setInventoryTab("arrow")}>화살</button></div>
           {canManageEquipment && <button className="equipment-add" onClick={() => { setArrowPreset({}); setAdding(inventoryTab); }}>+</button>}
@@ -252,6 +269,10 @@ export default function EquipmentManagement({
 }
 
 function Empty({ text }: { text: string }) { return <p className="equipment-empty">{text}</p>; }
+
+function EquipmentUsageRow({ item, count, max, onClick }: { item: Equipment; count: number; max: number; onClick: () => void }) {
+  return <button onClick={onClick}><span>{item.kind === "bow" ? "활" : "화살"}</span><div><b>{equipmentName(item)}</b><i><em style={{ width: `${(count / max) * 100}%` }} /></i></div><strong>{count}회</strong></button>;
+}
 
 function EquipmentStatDetail({ label, items, onOpen }: { label: string; items: Equipment[]; onOpen: (item: Equipment) => void }) {
   const statBows = assignBowIndexes(items).filter((item): item is BowEquipment => item.kind === "bow").sort((a, b) =>

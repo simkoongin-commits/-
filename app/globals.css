@@ -2799,20 +2799,35 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .equipment-stat-kinds > section > h4 small { color: #8199a5; font-size: 9px; }
 .equipment-stat-kinds .equipment-card { min-height: 88px; }
 .equipment-usage-panel { margin: 0 0 18px; padding: 14px; border: 1px solid #cfe6f2; border-radius: 15px; background: linear-gradient(145deg, #f2fbff, #fff); }
-.equipment-usage-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
-.equipment-usage-panel > header small { display: block; color: #7b97a5; font-size: 9px; font-weight: 800; }
+.equipment-usage-panel > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none; }
+.equipment-usage-panel > summary::-webkit-details-marker { display: none; }
+.equipment-usage-panel > summary small { display: block; color: #7b97a5; font-size: 9px; font-weight: 800; }
 .equipment-usage-panel h3 { margin: 2px 0 0; color: #205f7f; font-size: 15px; }
-.equipment-usage-panel > header > strong { color: #177daf; font-size: 20px; }
-.equipment-usage-panel > header i { margin-left: 2px; font-size: 9px; font-style: normal; }
-.equipment-usage-panel > div { display: grid; gap: 6px; }
-.equipment-usage-panel > div > button { min-width: 0; padding: 8px 9px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 0; border-radius: 10px; background: #fff; color: #426d82; text-align: left; }
-.equipment-usage-panel > div > button > span { padding: 4px 6px; border-radius: 6px; background: #e3f4fd; color: #187caf; font-size: 8px; font-weight: 900; }
-.equipment-usage-panel > div > button > div { min-width: 0; }
-.equipment-usage-panel > div > button b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
-.equipment-usage-panel > div > button i { height: 4px; margin-top: 5px; display: block; overflow: hidden; border-radius: 999px; background: #e3f0f5; }
-.equipment-usage-panel > div > button em { height: 100%; min-width: 2px; display: block; border-radius: inherit; background: linear-gradient(90deg, #54bce5, #1582bc); }
-.equipment-usage-panel > div > button > strong { color: #1a719b; font-size: 10px; white-space: nowrap; }
-.equipment-usage-panel > p { margin: 9px 0 0; color: #8aa0aa; font-size: 8px; }
+.equipment-usage-panel > summary > span { display: flex; align-items: center; gap: 9px; }
+.equipment-usage-panel > summary strong { color: #177daf; font-size: 20px; }
+.equipment-usage-panel > summary strong i { margin-left: 2px; font-size: 9px; font-style: normal; }
+.equipment-usage-panel > summary em { color: #7894a3; font-size: 9px; font-style: normal; font-weight: 850; }
+.equipment-usage-panel[open] > summary em::before { content: "접기"; font-size: 0; }
+.equipment-usage-panel[open] > summary em { font-size: 0; }
+.equipment-usage-panel[open] > summary em::after { content: "접기"; font-size: 9px; }
+.equipment-usage-content { margin-top: 13px; padding-top: 12px; display: grid; gap: 14px; border-top: 1px solid #dcecf3; }
+.equipment-usage-content > section > h4 { margin: 0 0 7px; display: flex; align-items: center; justify-content: space-between; color: #255f7c; font-size: 11px; }
+.equipment-usage-content > section > h4 small { color: #8198a4; font-size: 8px; }
+.equipment-usage-list { display: grid; gap: 6px; }
+.equipment-usage-list > button { min-width: 0; padding: 8px 9px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 0; border-radius: 10px; background: #fff; color: #426d82; text-align: left; }
+.equipment-usage-list > button > span { padding: 4px 6px; border-radius: 6px; background: #e3f4fd; color: #187caf; font-size: 8px; font-weight: 900; }
+.equipment-usage-list > button > div { min-width: 0; }
+.equipment-usage-list > button b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.equipment-usage-list > button i { height: 4px; margin-top: 5px; display: block; overflow: hidden; border-radius: 999px; background: #e3f0f5; }
+.equipment-usage-list > button em { height: 100%; min-width: 2px; display: block; border-radius: inherit; background: linear-gradient(90deg, #54bce5, #1582bc); }
+.equipment-usage-list > button > strong { color: #1a719b; font-size: 10px; white-space: nowrap; }
+.equipment-usage-tree { display: grid; gap: 7px; }
+.equipment-usage-tree details { overflow: hidden; border: 1px solid #d6e8f1; border-radius: 10px; background: #fff; }
+.equipment-usage-tree details details { margin: 7px; background: #f9fcfd; }
+.equipment-usage-tree summary { padding: 9px 10px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; color: #2c6b8b; font-size: 10px; font-weight: 850; }
+.equipment-usage-tree summary small { color: #839aa6; font-size: 8px; }
+.equipment-usage-tree .equipment-usage-list { padding: 0 7px 7px; }
+.equipment-usage-content > p { margin: 0; color: #8aa0aa; font-size: 8px; }
 .bow-tree { display: grid; gap: 10px; }
 .bow-tree > .equipment-card { width: 100%; }
 .bow-tree details { overflow: hidden; border: 1px solid #d5e8f2; border-radius: 14px; background: #fff; }
