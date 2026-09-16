@@ -8,6 +8,7 @@ type EquipmentBase = {
   holderId?: string;
   holderName?: string;
   activeRentalId?: string;
+  rentalCount?: number;
   createdAt: string;
 };
 
