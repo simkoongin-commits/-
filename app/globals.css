@@ -3101,6 +3101,17 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-tabs { display: flex; gap: 8px; margin: 20px 0; }
 .heart-tabs button { min-height: 42px; padding: 0 17px; border: 1px solid #cfe3ee; border-radius: 12px; background: #fff; color: #638497; font-weight: 800; }
 .heart-tabs button.active { border-color: #2486b8; background: #e8f6fc; color: #146c9e; }
+.heart-points { flex: none; padding: 8px 12px; border: 1px solid #b9dceb; border-radius: 12px; background: #e7f7fe; color: #116c9e; font-size: 14px; font-weight: 900; }
+.heart-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.heart-header-actions button { padding: 8px 10px; border: 1px solid #c7dfeb; border-radius: 10px; background: #fff; color: #517d93; font-size: 11px; font-weight: 800; }
+.heart-stat-tabs { margin-top: 0; }
+.heart-member-list { display: grid; gap: 10px; }
+.heart-member-group { border: 1px solid #d1e6f0; border-radius: 14px; background: #fff; overflow: hidden; }
+.heart-member-group > button { width: 100%; min-height: 58px; display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 0; background: #f4fafd; color: #205b7c; text-align: left; }
+.heart-member-group > button strong { font-size: 15px; }
+.heart-member-group > button span { margin-left: auto; color: #7191a2; font-size: 12px; }
+.heart-member-group > button b { color: #3984aa; }
+.heart-member-group > .heart-card-list { padding: 12px; }
 .heart-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
 .heart-list-heading h3 { margin: 0; color: #224e68; font-size: 19px; }
 .heart-list-heading > span { color: #7895a3; font-size: 12px; }
@@ -3109,7 +3120,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-editor { margin: 12px 0 22px; padding: 17px; }
 .heart-editor-head, .heart-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
 .heart-editor-head label, .heart-filters label { display: grid; gap: 6px; color: #4d7186; font-size: 12px; font-weight: 800; }
-.heart-editor-head input, .heart-filters input, .heart-filters select { min-height: 38px; padding: 6px 9px; border: 1px solid #c9dfe9; border-radius: 9px; background: #fff; color: #315f78; font: inherit; }
+.heart-editor-head input, .heart-editor-head select, .heart-filters input, .heart-filters select { min-height: 38px; padding: 6px 9px; border: 1px solid #c9dfe9; border-radius: 9px; background: #fff; color: #315f78; font: inherit; }
 .heart-editor-head > button, .heart-actions > button:not(.primary), .heart-filters > button { padding: 9px 12px; border: 1px solid #c9dfe9; border-radius: 9px; background: #f8fcfe; color: #557d91; font-weight: 700; }
 .heart-table-scroll { width: 100%; max-width: 100%; overflow: hidden; border: 1px solid #d5e6ed; border-radius: 12px; }
 .heart-table { width: 100%; min-width: 0; border-collapse: collapse; table-layout: fixed; text-align: center; }
@@ -3143,6 +3154,13 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-card-main span { font-size: 12px; }
 .heart-card-main b { margin-left: auto; color: #4382a4; }
 .heart-card-detail { padding: 0 15px 15px; }
+.heart-capture { padding: 12px 2px 1px; background: #fff; }
+.heart-capture-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px 12px; padding: 0 3px 10px; color: #275e7b; }
+.heart-capture-heading span { font-size: 11px; }
+.heart-card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; padding: 4px 12px 12px; }
+.heart-card-actions button { padding: 8px 12px; border: 1px solid #b9d9e8; border-radius: 9px; background: #eef8fc; color: #22749d; font-weight: 800; }
+.heart-card-actions button.danger-button { border-color: #eccac7; background: #fff1f0; color: #ad5753; }
+.heart-locked { color: #297ea7; font-weight: 800; }
 .heart-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; margin: 0 0 17px; }
 .heart-filters select { min-width: 140px; }
 .heart-picker-backdrop { position: fixed; z-index: 180; inset: 0; display: grid; place-items: center; padding: 20px; background: #12334f91; }
@@ -3159,6 +3177,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-target-face > span { width: 73%; aspect-ratio: 1; border-radius: 50%; background: #f00; }
 @media (max-width: 500px) {
   .heart-editor { padding: 9px; }
+  .heart-editor-head { flex-wrap: wrap; }
   .heart-card-detail { padding: 0 8px 10px; }
   .heart-table th, .heart-table td { height: 42px; font-size: clamp(9px, 2.8vw, 12px); }
   .heart-table td { font-size: clamp(15px, 5vw, 21px); }

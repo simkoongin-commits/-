@@ -7,6 +7,7 @@ export type HeartFiveRecord = {
   memberId: string;
   memberName: string;
   date: string;
+  place: string;
   createdAt: string;
   shots: ShotMark[];
 };
@@ -35,6 +36,28 @@ export function isCompleteRecord(shots: readonly ShotMark[]): boolean {
   return shots.length > 0 && shots.length % 5 === 0 && shots.every(isShotMark);
 }
 
+export const hasCompletedRound = (shots: readonly ShotMark[]): boolean => shots.length >= 5;
+
+export const newlyEarnedPoints = (previouslyRewarded: boolean, shots: readonly ShotMark[]): 0 | 2 =>
+  !previouslyRewarded && hasCompletedRound(shots) ? 2 : 0;
+
+export function compareHeartFiveRecords(a: HeartFiveRecord, b: HeartFiveRecord): number {
+  const first = recordStats(a.shots);
+  const second = recordStats(b.shots);
+  return b.date.localeCompare(a.date)
+    || second.best - first.best
+    || second.hits - first.hits
+    || b.createdAt.localeCompare(a.createdAt);
+}
+
+export function koreanToday(): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const find = (type: string) => parts.find((part) => part.type === type)?.value || "";
+  return `${find("year")}-${find("month")}-${find("day")}`;
+}
+
 export function parseHeartFiveRecord(id: string, value: Record<string, unknown>): HeartFiveRecord | null {
   if (
     typeof value.ownerUid !== "string" ||
@@ -53,6 +76,7 @@ export function parseHeartFiveRecord(id: string, value: Record<string, unknown>)
     memberId: value.memberId,
     memberName: value.memberName,
     date: value.date,
+    place: typeof value.place === "string" ? value.place : "미지정",
     createdAt: value.createdAt,
     shots: value.shots,
   };

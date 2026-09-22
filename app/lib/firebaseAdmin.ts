@@ -37,6 +37,7 @@ export const authenticatedMember = async (authorization: string | null) => {
   const snapshot = await clubRef.get();
   const members = (snapshot.data()?.members || []) as StoredMember[];
   return {
+    uid: decoded.uid,
     adminAuth,
     adminDb,
     clubRef,
