@@ -34,3 +34,10 @@ Vercel 프로젝트의 Environment Variables에 아래 이름으로 등록합니
 - 장비 상세의 `분실`·`손상`은 대여 중인 경우 대여 기록의 비고도 함께 갱신합니다. `분실물 회수`·`수리 완료` 뒤에도 대여가 진행 중이라면 장비는 다시 `대여 중`으로 돌아갑니다. 과거의 수동 대여 불가능 설정은 기존 장비에서만 해제할 수 있습니다.
 - 장비 삭제는 화면에서만 걸러서는 안 됩니다. `app/page.tsx`의 Firestore 트랜잭션에서 최신 데이터로 다시 검증합니다.
 - 기능 변경 시 `node --test tests/member-display-equipment.test.mjs tests/membership-history.test.mjs`와 `npm run build`를 실행합니다. 기존 `npm test`의 미리보기 관련 테스트는 현재 누락된 `_sites-preview` 파일에 의존하므로 별도 정리가 필요합니다.
+
+### 心5시 心5중
+
+- 기록 화면은 `app/components/HeartFive.tsx`, 입력값 검증과 통계 계산은 `lib/heartFive.ts`에 있습니다.
+- 완료한 한 순(5발) 이상만 저장하며, 기록은 `clubs/simgunghoe/shotRecords` 하위 컬렉션에 회원별 문서로 보관합니다. 입력 중 마지막 한 발은 되돌릴 수 있습니다.
+- 새 기능을 배포할 때는 웹 배포와 함께 `firebase deploy --only firestore:rules`로 `firestore.rules`도 적용해야 기록 조회·저장이 됩니다. 규칙의 작성 권한은 로그인한 기록 소유자에게만 있습니다.
+- 계산 검증: `node --test tests/heart-five.test.mjs`.
