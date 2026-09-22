@@ -1,5 +1,6 @@
 export const directions = ["↖", "↑", "↗", "←", "→", "↙", "↓", "↘"] as const;
 export type ShotMark = (typeof directions)[number] | "中";
+export type PracticeMode = "원사" | "근사";
 
 export type HeartFiveRecord = {
   id: string;
@@ -8,6 +9,7 @@ export type HeartFiveRecord = {
   memberName: string;
   date: string;
   place: string;
+  mode: PracticeMode;
   createdAt: string;
   shots: ShotMark[];
 };
@@ -77,6 +79,7 @@ export function parseHeartFiveRecord(id: string, value: Record<string, unknown>)
     memberName: value.memberName,
     date: value.date,
     place: typeof value.place === "string" ? value.place : "미지정",
+    mode: value.mode === "근사" ? "근사" : "원사",
     createdAt: value.createdAt,
     shots: value.shots,
   };

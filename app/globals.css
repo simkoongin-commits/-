@@ -3096,11 +3096,14 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .install-prompt-primary { margin-top: 18px; border: 0; background: #1684c3; color: #fff; box-shadow: 0 8px 18px rgba(22, 132, 195, .25); font-size: 14px; }
 .install-prompt-today { margin-top: 8px; border: 1px solid #c8e3ef; background: #fff; color: #527b91; font-size: 12px; }
 
-/* 心5시 心5중 기록과 전체 회원 통계 */
+/* 心五시 心五중 기록과 전체 회원 통계 */
 .heart-five { padding-bottom: 100px; }
 .heart-tabs { display: flex; gap: 8px; margin: 20px 0; }
 .heart-tabs button { min-height: 42px; padding: 0 17px; border: 1px solid #cfe3ee; border-radius: 12px; background: #fff; color: #638497; font-weight: 800; }
 .heart-tabs button.active { border-color: #2486b8; background: #e8f6fc; color: #146c9e; }
+.heart-mode-tabs { margin: 8px 0 4px; }
+.heart-mode-tabs button { flex: 1; max-width: 180px; }
+.heart-mode-tabs button.active { border-color: #7ec49c; background: #e8f7ed; color: #297246; }
 .heart-points { flex: none; padding: 8px 12px; border: 1px solid #b9dceb; border-radius: 12px; background: #e7f7fe; color: #116c9e; font-size: 14px; font-weight: 900; }
 .heart-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 .heart-header-actions button { padding: 8px 10px; border: 1px solid #c7dfeb; border-radius: 10px; background: #fff; color: #517d93; font-size: 11px; font-weight: 800; }
@@ -3149,6 +3152,9 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-empty { padding: 30px 15px; border-radius: 13px; background: #eff7fa; color: #7792a1; text-align: center; font-size: 13px; }
 .heart-card-list { display: grid; gap: 10px; }
 .heart-card { overflow: hidden; }
+.heart-card-near { border-color: #bfe5c6; background: #f6fdf6; }
+.heart-card-near .heart-card-main { background: #effaf0; }
+.heart-card-near .heart-capture { background: #f9fff9; }
 .heart-card-main { width: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 17px; border: 0; background: transparent; color: #547b8f; text-align: left; }
 .heart-card-main strong { color: #205b7c; font-size: 16px; }
 .heart-card-main span { font-size: 12px; }
@@ -3160,6 +3166,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-card-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; padding: 4px 12px 12px; }
 .heart-card-actions button { padding: 8px 12px; border: 1px solid #b9d9e8; border-radius: 9px; background: #eef8fc; color: #22749d; font-weight: 800; }
 .heart-card-actions button.danger-button { border-color: #eccac7; background: #fff1f0; color: #ad5753; }
+.heart-image-saved { align-self: center; color: #328452; font-size: 11px; font-weight: 800; }
 .heart-locked { color: #297ea7; font-weight: 800; }
 .heart-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; margin: 0 0 17px; }
 .heart-filters select { min-width: 140px; }
