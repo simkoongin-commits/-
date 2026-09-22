@@ -2,12 +2,15 @@
 
 import { useState } from "react";
 import { nextTerm, termOrder, type TermSnapshot, type WithdrawalRecord } from "@/lib/membershipHistory";
+import { memberDisplayLabel } from "@/lib/memberDisplay";
 
 type StatisticsMember = {
   id: string;
   name: string;
   joinTerm: string;
   grade: "예비신사" | "신사" | "구사";
+  position?: string;
+  team?: string;
 };
 type HallRank = "초1중" | "초2중" | "초3중" | "초4중" | "초몰기" | "단";
 type HallOfFame = Record<HallRank, string[]>;
@@ -42,7 +45,7 @@ export default function Statistics({ members, currentTerm, snapshots, withdrawal
     <section className="stats-section">
       <div className="stats-section-head"><div><small>회원 현황</small><h3>현재 회원</h3></div></div>
       <div className="stats-metric-grid compact">{(["all", "예비신사", "신사", "구사"] as const).map((grade) => <button key={grade} className={openMemberGroup === grade ? "active" : ""} onClick={() => setOpenMemberGroup(openMemberGroup === grade ? null : grade)}><small>{grade === "all" ? "총 인원" : grade}</small><strong>{grade === "all" ? members.length : members.filter((member) => member.grade === grade).length}<i>명</i></strong></button>)}</div>
-      {openMemberGroup && <div className="member-group-detail"><header><b>{openMemberGroup === "all" ? "전체 회원" : openMemberGroup}</b><span>{selectedMembers.length}명</span></header>{selectedMembers.length ? <div>{selectedMembers.slice().sort((a, b) => a.name.localeCompare(b.name, "ko")).map((member) => <span key={member.id}><b>{member.name}</b><small>{member.joinTerm} 입부</small></span>)}</div> : <p>해당 회원이 없어요.</p>}</div>}
+      {openMemberGroup && <div className="member-group-detail"><header><b>{openMemberGroup === "all" ? "전체 회원" : openMemberGroup}</b><span>{selectedMembers.length}명</span></header>{selectedMembers.length ? <div>{selectedMembers.slice().sort((a, b) => a.name.localeCompare(b.name, "ko")).map((member) => <span key={member.id}><b>{member.name}</b><small>{member.joinTerm} 입부 · {memberDisplayLabel(member)}</small></span>)}</div> : <p>해당 회원이 없어요.</p>}</div>}
     </section>
 
     <section className="stats-section">
@@ -54,7 +57,7 @@ export default function Statistics({ members, currentTerm, snapshots, withdrawal
     <section className="stats-section">
       <div className="stats-section-head"><div><small>회원 유지 현황</small><h3>입부 시기별 현재 인원</h3></div></div>
       <div className="cohort-chart" aria-label="입부 시기별 현재 회원 수 막대그래프"><div className="cohort-chart-y"><span>{maxCohort}</span><span>{Math.ceil(maxCohort / 2)}</span><span>0</span></div><div className="cohort-chart-scroll"><div className="cohort-bars">{cohorts.map((cohort) => { const cohortMembers = members.filter((member) => member.joinTerm === cohort); return <button className={openCohort === cohort ? "active" : ""} key={cohort} onClick={() => setOpenCohort(openCohort === cohort ? "" : cohort)}><strong>{cohortMembers.length}</strong><div><i style={{ height: `${cohortMembers.length / maxCohort * 100}%` }} /></div><span>{cohort}</span></button>; })}</div></div></div>
-      {openCohort && <div className="cohort-population-detail"><header><b>{openCohort} 입부</b></header><div>{members.filter((member) => member.joinTerm === openCohort).map((member) => <span key={member.id}><b>{member.name}</b><small>{member.grade}</small></span>)}</div></div>}
+      {openCohort && <div className="cohort-population-detail"><header><b>{openCohort} 입부</b></header><div>{members.filter((member) => member.joinTerm === openCohort).map((member) => <span key={member.id}><b>{member.name}</b><small>{memberDisplayLabel(member)}</small></span>)}</div></div>}
     </section>
 
     <section className="stats-section"><div className="stats-section-head"><div><small>초중 현황</small><h3>입부 학기별 현재 단계</h3></div></div><div className="cohort-card-list">{cohorts.slice().reverse().map((cohort) => <article className="cohort-card" key={cohort}><header><b>{cohort}</b><span>입부</span></header><div className="cohort-stage-list">{hallRanks.map((rank, index) => { const stageMembers = members.filter((member) => member.joinTerm === cohort && (hall[rank] || []).includes(member.id)); const key = `${cohort}-${rank}`; return <button className={`cohort-stage stage-${index + 1} ${stageMembers.length ? "" : "empty"} ${openStage === key ? "open" : ""}`} key={rank} onClick={() => setOpenStage(openStage === key ? "" : key)}><span>{rank}</span><strong>{stageMembers.length}<i>명</i></strong>{openStage === key && <small>{stageMembers.length ? stageMembers.map((member) => member.name).join(" · ") : "해당 단계의 회원이 없어요."}</small>}</button>; })}</div></article>)}</div></section>
