@@ -3756,8 +3756,8 @@ function Members({
                 {m.joinTerm} 입부
               </small>
             </div>
-            <span className="grade">
-              {memberDisplayLabel(m)}
+            <span className="grade member-grade">
+              {m.position || !memberTeam(m) ? memberDisplayLabel(m) : <>{m.grade}<br /><span className="member-team-suffix">-{memberTeam(m)}</span></>}
             </span>
             <span className="role">{m.role}</span>
             {session.role === "관리자" && (
