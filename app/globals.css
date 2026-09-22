@@ -3111,18 +3111,21 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-editor-head label, .heart-filters label { display: grid; gap: 6px; color: #4d7186; font-size: 12px; font-weight: 800; }
 .heart-editor-head input, .heart-filters input, .heart-filters select { min-height: 38px; padding: 6px 9px; border: 1px solid #c9dfe9; border-radius: 9px; background: #fff; color: #315f78; font: inherit; }
 .heart-editor-head > button, .heart-actions > button:not(.primary), .heart-filters > button { padding: 9px 12px; border: 1px solid #c9dfe9; border-radius: 9px; background: #f8fcfe; color: #557d91; font-weight: 700; }
-.heart-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid #d5e6ed; border-radius: 12px; }
-.heart-table { width: 100%; min-width: 550px; border-collapse: collapse; table-layout: fixed; text-align: center; }
-.heart-table th, .heart-table td { height: 50px; border-right: 1px solid #dbeaf0; border-bottom: 1px solid #dbeaf0; color: #294f67; }
+.heart-table-scroll { width: 100%; max-width: 100%; overflow: hidden; border: 1px solid #d5e6ed; border-radius: 12px; }
+.heart-table { width: 100%; min-width: 0; border-collapse: collapse; table-layout: fixed; text-align: center; }
+.heart-table th, .heart-table td { height: 50px; padding: 0 2px; border-right: 1px solid #dbeaf0; border-bottom: 1px solid #dbeaf0; color: #294f67; }
 .heart-table th:last-child, .heart-table td:last-child { border-right: 0; }
 .heart-table tbody tr:last-child th, .heart-table tbody tr:last-child td { border-bottom: 0; }
 .heart-table thead th { background: #e9f6fc; font-size: 12px; }
-.heart-table tbody th { width: 63px; background: #f5fafc; font-size: 12px; }
+.heart-table tbody th { background: #f5fafc; font-size: 12px; }
 .heart-table td { background: #fff; font-size: 22px; }
 .heart-table td.heart-round-score { background: #f7faf1; color: #567a3c; font-size: 15px; font-weight: 850; }
 .heart-hit { color: #d73232; font-weight: 900; }
 .heart-miss { color: #4e7b95; }
 .heart-next-shot { width: 37px; height: 37px; border: 1px solid #8bcae7; border-radius: 50%; background: #eaf8ff; color: #197aaf; font-size: 22px; font-weight: 800; }
+.heart-edit-shot { min-width: 30px; min-height: 30px; border: 1px dashed #66acd0; border-radius: 8px; background: #ecf8fd; font-size: inherit; }
+.heart-edit-record { margin-top: 4px; padding: 8px 13px; border: 1px solid #b9d9e8; border-radius: 9px; background: #eef8fc; color: #22749d; font-weight: 800; }
+.heart-save-status { margin-left: auto; color: #7092a4; font-size: 11px; }
 .heart-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 12px 0; }
 .heart-summary span { min-width: 0; padding: 10px 5px; border-radius: 10px; background: #f0f8fc; text-align: center; }
 .heart-summary small, .heart-summary strong { display: block; }
@@ -3155,6 +3158,12 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-target-face { width: 72%; height: 91%; justify-self: center; align-self: end; display: grid; place-items: center; background: #111; }
 .heart-target-face > span { width: 73%; aspect-ratio: 1; border-radius: 50%; background: #f00; }
 @media (max-width: 500px) {
+  .heart-editor { padding: 9px; }
+  .heart-card-detail { padding: 0 8px 10px; }
+  .heart-table th, .heart-table td { height: 42px; font-size: clamp(9px, 2.8vw, 12px); }
+  .heart-table td { font-size: clamp(15px, 5vw, 21px); }
+  .heart-table td.heart-round-score { font-size: clamp(10px, 3vw, 13px); }
+  .heart-next-shot { width: min(30px, 8vw); height: min(30px, 8vw); font-size: 18px; }
   .heart-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .heart-card-main { gap: 5px 9px; }
   .heart-card-main strong { width: 100%; }

@@ -15,12 +15,13 @@ export const isShotMark = (value: unknown): value is ShotMark =>
   value === "中" || directions.some((direction) => direction === value);
 
 export function recordStats(shots: readonly ShotMark[]) {
-  const rounds = Array.from({ length: Math.ceil(shots.length / 5) }, (_, index) =>
-    shots.slice(index * 5, index * 5 + 5),
-  );
-  const hits = shots.filter((shot) => shot === "中").length;
-  const best = Math.max(0, ...rounds.map((round) => round.filter((shot) => shot === "中").length));
   const completedRounds = Math.floor(shots.length / 5);
+  const completedShots = shots.slice(0, completedRounds * 5);
+  const rounds = Array.from({ length: completedRounds }, (_, index) =>
+    completedShots.slice(index * 5, index * 5 + 5),
+  );
+  const hits = completedShots.filter((shot) => shot === "中").length;
+  const best = Math.max(0, ...rounds.map((round) => round.filter((shot) => shot === "中").length));
   return {
     hits,
     best,
@@ -43,7 +44,8 @@ export function parseHeartFiveRecord(id: string, value: Record<string, unknown>)
     !/^\d{4}-\d{2}-\d{2}$/.test(value.date) ||
     typeof value.createdAt !== "string" ||
     !Array.isArray(value.shots) ||
-    !isCompleteRecord(value.shots)
+    value.shots.length === 0 ||
+    !value.shots.every(isShotMark)
   ) return null;
   return {
     id,

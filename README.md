@@ -38,6 +38,6 @@ Vercel 프로젝트의 Environment Variables에 아래 이름으로 등록합니
 ### 心5시 心5중
 
 - 기록 화면은 `app/components/HeartFive.tsx`, 입력값 검증과 통계 계산은 `lib/heartFive.ts`에 있습니다.
-- 완료한 한 순(5발) 이상만 저장하며, 기록은 `clubs/simgunghoe/shotRecords` 하위 컬렉션에 회원별 문서로 보관합니다. 입력 중 마지막 한 발은 되돌릴 수 있습니다.
-- 새 기능을 배포할 때는 웹 배포와 함께 `firebase deploy --only firestore:rules`로 `firestore.rules`도 적용해야 기록 조회·저장이 됩니다. 규칙의 작성 권한은 로그인한 기록 소유자에게만 있습니다.
+- 각 기록은 `clubs/heartFive-{uuid}` 문서 하나로 보관합니다. 기존 `/clubs` 권한 규칙으로 읽고 쓰므로 별도 규칙 배포 없이 작동합니다. 첫 발부터 자동저장되며, 한 순에 못 미치는 입력은 본인 기록의 진행 중 상태로 보관하고 전체 통계에는 완료된 순만 포함합니다.
+- 기록 입력 화면의 `수정`을 누르면 기존 발을 바꾸거나 마지막 발을 삭제할 수 있습니다. 저장 버튼은 없고 변경 때마다 동기화합니다.
 - 계산 검증: `node --test tests/heart-five.test.mjs`.
