@@ -130,6 +130,10 @@ export const releaseEquipment = (item: Equipment): Equipment => {
   return { ...rest, status: "available" } as Equipment;
 };
 
+// A recovered item remains rented until its active rental is returned.
+export const restoreEquipmentCondition = (item: Equipment, activeRental: boolean): Equipment =>
+  activeRental ? { ...item, status: "rented" } : releaseEquipment(item);
+
 export const makeEquipmentId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()

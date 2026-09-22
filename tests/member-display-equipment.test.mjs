@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { memberDisplayLabel } from "../lib/memberDisplay.ts";
-import { validateArrowDeletion } from "../lib/equipment.ts";
+import { restoreEquipmentCondition, validateArrowDeletion } from "../lib/equipment.ts";
 
 const arrow = (id, lengthWeight, index, status = "available") => ({
   id, kind: "arrow", lengthWeight, index, indexNumber: "1", status,
@@ -24,4 +24,12 @@ test("bulk deletion rejects unavailable or rental-linked items", () => {
   assert.throws(() => validateArrowDeletion(items, [], ["a", "b"]));
   assert.throws(() => validateArrowDeletion(items, [{ itemIds: ["a"] }], ["a"]));
   assert.throws(() => validateArrowDeletion(items, [], ["a", "missing"]));
+});
+
+test("recovered equipment remains rented until an active rental is returned", () => {
+  const lost = { ...arrow("a", "30-400", "A", "lost"), holderId: "member", holderName: "회원", activeRentalId: "rental" };
+  assert.equal(restoreEquipmentCondition(lost, true).status, "rented");
+  const returned = restoreEquipmentCondition(lost, false);
+  assert.equal(returned.status, "available");
+  assert.equal(returned.activeRentalId, undefined);
 });

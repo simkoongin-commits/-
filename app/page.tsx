@@ -34,6 +34,7 @@ import {
   equipmentName,
   makeEquipmentId,
   releaseEquipment,
+  restoreEquipmentCondition,
   validateArrowDeletion,
   type Equipment,
   type EquipmentRental,
@@ -1875,6 +1876,33 @@ export default function Home() {
       transaction.set(clubRef, { equipment: current.map((item) => item.id === id ? { ...item, manualAvailable: !item.manualAvailable } : item) }, { merge: true });
     });
   };
+  const markEquipmentCondition = async (id: string, condition: "lost" | "damaged", detail = "") => {
+    if (!canManageEquipment) throw new Error("관리자 또는 장비팀만 장비 상태를 변경할 수 있어요.");
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      if (!snapshot.exists()) throw new Error("장비 데이터를 불러오지 못했어요.");
+      const data = snapshot.data();
+      const current = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
+      const rentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
+      const target = current.find((item) => item.id === id);
+      if (!target || (target.status !== "available" && target.status !== "rented")) throw new Error("장비 상태가 이미 변경됐어요.");
+      if (!target.manualAvailable) throw new Error("기존 대여 불가능 설정을 먼저 해제해주세요.");
+      const rental = target.activeRentalId ? rentals.find((item) => item.id === target.activeRentalId && item.status === "active") : undefined;
+      if (target.status === "rented" && !rental) throw new Error("연결된 대여 기록을 찾을 수 없어요.");
+      if (rental && condition === "damaged" && !detail.trim()) throw new Error("손상된 장비의 내용을 입력해주세요.");
+      const note: RentalNote = {
+        id: makeEquipmentId(),
+        type: condition,
+        itemIds: [id],
+        ...(condition === "damaged" && rental ? { details: { [id]: detail.trim() } } : {}),
+      };
+      transaction.set(clubRef, {
+        equipment: current.map((item) => item.id === id ? { ...item, status: condition } : item),
+        ...(rental ? { equipmentRentals: rentals.map((item) => item.id === rental.id ? { ...item, notes: [...(item.notes || []), note] } : item) } : {}),
+      }, { merge: true });
+    });
+  };
   const updateEquipmentNote = async (id: string, note: string) => {
     if (!canManageEquipment) throw new Error("관리자 또는 장비팀만 장비 비고를 수정할 수 있어요.");
     const clubRef = doc(db, "clubs", "simgunghoe");
@@ -1983,7 +2011,8 @@ export default function Home() {
           return [{ ...withoutDetails, itemIds, ...(details && Object.keys(details).length ? { details } : {}) }];
         }),
       }));
-      transaction.set(clubRef, { equipment: current.map((item) => item.id === itemId ? releaseEquipment(item) : item), equipmentRentals: nextRentals }, { merge: true });
+      const activeRental = currentRentals.some((rental) => rental.id === target.activeRentalId && rental.status === "active");
+      transaction.set(clubRef, { equipment: current.map((item) => item.id === itemId ? restoreEquipmentCondition(item, activeRental) : item), equipmentRentals: nextRentals }, { merge: true });
     });
   };
   const deleteEquipmentRental = async (rentalId: string) => {
@@ -2826,6 +2855,7 @@ export default function Home() {
           session={session}
           onAddEquipment={addEquipment}
           onToggleAvailability={toggleEquipmentAvailability}
+          onMarkCondition={markEquipmentCondition}
           onUpdateEquipmentNote={updateEquipmentNote}
           onCreateRental={createEquipmentRental}
           onAddRentalNotes={addEquipmentRentalNotes}
