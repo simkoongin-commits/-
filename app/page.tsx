@@ -22,12 +22,10 @@ import {
   deleteField,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import { toPng } from "html-to-image";
+import dynamic from "next/dynamic";
 import sanitizeHtml from "sanitize-html";
 import { auth, db, storage } from "@/lib/firebase";
-import EquipmentManagement, { type EquipmentDraft } from "@/app/components/EquipmentManagement";
-import Statistics from "@/app/components/Statistics";
-import HeartFive from "@/app/components/HeartFive";
+import type { EquipmentDraft } from "@/app/components/EquipmentManagement";
 import { defaultPracticePlaces } from "@/lib/practicePlaces";
 import {
   assignBowIndexes,
@@ -48,6 +46,10 @@ import {
 } from "@/lib/practiceStats";
 import { memberSnapshot, nextTerm, normalizeTermSnapshots, normalizeWithdrawals, termOrder, type TermSnapshot, type WithdrawalRecord, validTerm } from "@/lib/membershipHistory";
 import { memberDisplayLabel } from "@/lib/memberDisplay";
+
+const EquipmentManagement = dynamic(() => import("@/app/components/EquipmentManagement"));
+const Statistics = dynamic(() => import("@/app/components/Statistics"));
+const HeartFive = dynamic(() => import("@/app/components/HeartFive"));
 
 type TeamName = "대표팀" | "교육팀" | "장비팀" | "홍보팀" | "지원팀";
 const teamNames: TeamName[] = ["대표팀", "교육팀", "장비팀", "홍보팀", "지원팀"];
@@ -2417,6 +2419,9 @@ export default function Home() {
         >
           <span>⌂</span>습사
         </button>
+        <button className={view === "heartFive" ? "active" : ""} onClick={() => { setView("heartFive"); setMenuOpen(false); }}>
+          <span>◎</span>心五시 心五중
+        </button>
         <button
           className={view === "education" ? "active" : ""}
           onClick={() => { setView("education"); setMenuOpen(false); }}
@@ -2443,9 +2448,6 @@ export default function Home() {
         </button>
         <button className={view === "equipment" ? "active" : ""} onClick={() => { setView("equipment"); setMenuOpen(false); }}>
           <span>⌁</span>장비 관리
-        </button>
-        <button className={view === "heartFive" ? "active" : ""} onClick={() => { setView("heartFive"); setMenuOpen(false); }}>
-          <span>◎</span>心5시 心5중
         </button>
       </nav>
       {view === "cards" && (
@@ -3586,6 +3588,7 @@ function HallOfFameView({ hall, members, editable, onChange }: { hall: HallOfFam
   const availableMembers = members.filter((member) => !assignedMemberIds.has(member.id));
   const saveImage = async () => {
     if (!captureRef.current) return;
+    const { toPng } = await import("html-to-image");
     const dataUrl = await toPng(captureRef.current, { cacheBust: true, pixelRatio: 2, filter: (node) => !(node instanceof HTMLElement && node.classList.contains("hall-admin-control")) });
     const link = document.createElement("a");
     link.download = `심궁회-명예의전당-${new Date().toISOString().slice(0, 10)}.png`;

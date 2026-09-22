@@ -33,8 +33,9 @@ test("partial next round is kept but excluded from completed-round statistics", 
 
 test("saved record parsing rejects malformed data", () => {
   const valid = { ownerUid: "uid", memberId: "123", memberName: "회원", date: "2026-09-22", createdAt: "2026-09-22T12:00:00.000Z", shots: ["中", "↗", "中", "↓", "中"] };
-  assert.deepEqual(parseHeartFiveRecord("record-1", valid), { id: "record-1", place: "미지정", ...valid });
+  assert.deepEqual(parseHeartFiveRecord("record-1", valid), { id: "record-1", place: "미지정", mode: "원사", ...valid });
   assert.deepEqual(parseHeartFiveRecord("record-2", { ...valid, shots: ["中"] })?.shots, ["中"]);
+  assert.equal(parseHeartFiveRecord("record-near", { ...valid, mode: "근사" })?.mode, "근사");
   assert.equal(parseHeartFiveRecord("record-3", { ...valid, shots: ["bad"] }), null);
 });
 

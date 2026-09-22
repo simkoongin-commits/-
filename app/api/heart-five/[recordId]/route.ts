@@ -19,8 +19,9 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ rec
     if (!auth?.member) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
     const { recordId } = await context.params;
     if (!validRecordId(recordId)) return NextResponse.json({ error: "기록을 확인해주세요." }, { status: 400 });
-    const body = await request.json().catch(() => ({})) as { date?: unknown; place?: unknown; shots?: unknown };
+    const body = await request.json().catch(() => ({})) as { date?: unknown; place?: unknown; mode?: unknown; shots?: unknown };
     if (!validDate(body.date) || typeof body.place !== "string" || !body.place.trim() || body.place.length > 100
+      || (body.mode !== undefined && body.mode !== "원사" && body.mode !== "근사")
       || !Array.isArray(body.shots) || body.shots.length < 1 || body.shots.length > 5000 || !body.shots.every(isShotMark)) {
       return NextResponse.json({ error: "날짜, 장소와 시위 기록을 확인해주세요." }, { status: 400 });
     }
@@ -49,6 +50,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ rec
         memberName: auth.member!.name || auth.member!.id,
         date: body.date,
         place,
+        mode: body.mode || current?.mode || "원사",
         createdAt: current?.createdAt || new Date().toISOString(),
         shots,
         rewarded,

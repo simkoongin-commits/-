@@ -9,6 +9,8 @@ export const walletPoints = (value: unknown): number =>
 
 /** Move records written by the earlier browser-only implementation behind server-only access. */
 export async function migrateLegacyHeartFiveRecords(db: Firestore): Promise<void> {
+  const marker = db.collection("appMigrations").doc("heartFiveRecordsV1");
+  if ((await marker.get()).exists) return;
   const [rootRecords, nestedRecords] = await Promise.all([
     db.collection("clubs").where("kind", "==", "heartFive").get(),
     db.collection("clubs").doc("simgunghoe").collection("shotRecords").get(),
@@ -32,6 +34,7 @@ export async function migrateLegacyHeartFiveRecords(db: Firestore): Promise<void
           memberName: parsed.memberName,
           date: parsed.date,
           place: parsed.place,
+          mode: parsed.mode,
           createdAt: parsed.createdAt,
           shots: parsed.shots,
           rewarded,
@@ -41,4 +44,5 @@ export async function migrateLegacyHeartFiveRecords(db: Firestore): Promise<void
       transaction.delete(old.ref);
     });
   }
+  await marker.set({ completedAt: new Date().toISOString() });
 }
