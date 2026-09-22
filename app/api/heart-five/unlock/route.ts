@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
         transaction.get(recordRef), transaction.get(wallet), transaction.get(unlock),
       ]);
       const record = recordSnapshot.exists ? parseHeartFiveRecord(recordSnapshot.id, recordSnapshot.data() || {}) : null;
-      if (!record || record.shots.length < 5) return { error: "열람할 기록이 없습니다.", status: 404 };
+      if (!record || !record.finalized || record.shots.length < 5) return { error: "열람할 기록이 없습니다.", status: 404 };
       if (record.ownerUid === auth.uid || unlockSnapshot.exists) return { ok: true, points: walletPoints(walletSnapshot.data()?.points) };
       const balance = walletPoints(walletSnapshot.data()?.points);
       if (balance < 1) return { error: "포인트가 부족합니다.", status: 409 };

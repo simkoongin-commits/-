@@ -2964,6 +2964,9 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 
 /* Statistics */
 .statistics-page { display: grid; gap: 14px; padding-top: 24px; }
+.statistics-locked { min-height: 55vh; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; }
+.statistics-locked > span { font-size: 42px; }
+.statistics-locked h2, .statistics-locked p { margin: 0; }
 .stats-section { overflow: hidden; padding: 18px; border: 1px solid #cfe7f3; border-radius: 19px; background: #fff; box-shadow: 0 10px 28px rgba(30, 113, 157, .08); }
 .stats-section-head, .personal-stats > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
 .stats-section-head small, .personal-stats header small { display: block; margin-bottom: 4px; color: #6c92a7; font-size: 10px; font-weight: 850; }
@@ -3103,7 +3106,9 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-tabs button.active { border-color: #2486b8; background: #e8f6fc; color: #146c9e; }
 .heart-mode-tabs { margin: 8px 0 4px; }
 .heart-mode-tabs button { flex: 1; max-width: 180px; }
-.heart-mode-tabs button.active { border-color: #7ec49c; background: #e8f7ed; color: #297246; }
+.heart-mode-tabs button.active { border-color: #58aeda; background: #e3f4fc; color: #126b9b; }
+.heart-mode-tabs button:last-child.active { border-color: #7ec49c; background: #e8f7ed; color: #297246; }
+.heart-save-button { margin-left: auto; }
 .heart-points { flex: none; padding: 8px 12px; border: 1px solid #b9dceb; border-radius: 12px; background: #e7f7fe; color: #116c9e; font-size: 14px; font-weight: 900; }
 .heart-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 .heart-header-actions button { padding: 8px 10px; border: 1px solid #c7dfeb; border-radius: 10px; background: #fff; color: #517d93; font-size: 11px; font-weight: 800; }

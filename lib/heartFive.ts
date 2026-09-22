@@ -10,6 +10,7 @@ export type HeartFiveRecord = {
   date: string;
   place: string;
   mode: PracticeMode;
+  finalized: boolean;
   createdAt: string;
   shots: ShotMark[];
 };
@@ -80,6 +81,7 @@ export function parseHeartFiveRecord(id: string, value: Record<string, unknown>)
     date: value.date,
     place: typeof value.place === "string" ? value.place : "미지정",
     mode: value.mode === "근사" ? "근사" : "원사",
+    finalized: value.finalized !== false,
     createdAt: value.createdAt,
     shots: value.shots,
   };

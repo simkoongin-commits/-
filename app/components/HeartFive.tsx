@@ -19,6 +19,7 @@ type RecordItem = {
   date: string;
   place: string;
   mode: PracticeMode;
+  finalized: boolean;
   hits: number;
   createdAt: string;
   own: boolean;
@@ -38,6 +39,7 @@ const readRecordCache = (): { records: RecordItem[]; points: number } => {
       records: cached.records.map((record) => ({
         ...record,
         mode: record.mode === "근사" ? "근사" : "원사",
+        finalized: record.finalized !== false,
         hits: typeof record.hits === "number" ? record.hits : record.stats?.hits || 0,
       })),
       points: typeof cached.points === "number" ? cached.points : 0,
@@ -144,6 +146,7 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
   const [shots, setShots] = useState<ShotMark[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [recordId, setRecordId] = useState("");
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
@@ -176,7 +179,7 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
     return () => { window.clearTimeout(initial); document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onVisible); };
   }, [refresh]);
 
-  const mine = useMemo(() => records.filter((record) => record.own).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [records]);
+  const mine = useMemo(() => records.filter((record) => record.own && record.finalized).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [records]);
   const publicRecords = records.filter((record) => record.completed && record.mode === modeFilter);
   const memberGroups = useMemo(() => {
     const groups = new Map<string, { name: string; records: RecordItem[] }>();
@@ -188,12 +191,12 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
     return [...groups.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, "ko"));
   }, [records, modeFilter]);
 
-  const persist = (nextShots: ShotMark[], nextDate: string, nextPlace: string, nextMode: PracticeMode, id = recordId) => {
+  const persist = (nextShots: ShotMark[], nextDate: string, nextPlace: string, nextMode: PracticeMode, finalized = false, id = recordId) => {
     if (!id || !nextDate || !nextPlace || !nextShots.length) return;
     const version = ++saveVersion.current;
     setSaveStatus("saving");
     saveQueue.current = saveQueue.current.catch(() => undefined).then(() => recordRequest(`/api/heart-five/${encodeURIComponent(id)}`, {
-      method: "PUT", body: JSON.stringify({ date: nextDate, place: nextPlace, mode: nextMode, shots: nextShots }),
+      method: "PUT", body: JSON.stringify({ date: nextDate, place: nextPlace, mode: nextMode, shots: nextShots, finalized }),
     }));
     void saveQueue.current.then(() => {
       if (version === saveVersion.current) { setSaveStatus("saved"); void refresh(); }
@@ -203,13 +206,15 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
   };
 
   const startNew = () => {
+    const draft = records.find((record) => record.own && !record.finalized && record.shots);
     saveVersion.current += 1;
-    setRecordId(`heartFive-${crypto.randomUUID()}`);
-    setDate(koreanToday());
-    setPlace(places[0] || "");
-    setMode("원사");
-    setShots([]);
+    setRecordId(draft?.id || `heartFive-${crypto.randomUUID()}`);
+    setDate(draft?.date || koreanToday());
+    setPlace(draft?.place || places[0] || "");
+    setMode(draft?.mode || "원사");
+    setShots(draft?.shots ? [...draft.shots] : []);
     setEditMode(false);
+    setInlineEditingId(null);
     setEditingIndex(null);
     setSaveStatus("idle");
     setAdding(true);
@@ -224,9 +229,10 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
     setMode(record.mode);
     setShots([...record.shots]);
     setEditMode(true);
+    setInlineEditingId(record.id);
     setEditingIndex(null);
     setSaveStatus("saved");
-    setAdding(true);
+    setAdding(false);
     setTab("records");
   };
 
@@ -238,7 +244,29 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
     setShots(nextShots);
     setEditingIndex(null);
     setPickerOpen(false);
-    persist(nextShots, date, place, mode);
+    persist(nextShots, date, place, mode, inlineEditingId !== null);
+  };
+
+  const saveDraft = async () => {
+    if (!recordId || !place || shots.length < 5 || shots.length % 5 !== 0) {
+      setMessage("한 순을 모두 입력한 뒤 저장해주세요.");
+      return;
+    }
+    setSaveStatus("saving");
+    try {
+      await saveQueue.current.catch(() => undefined);
+      await recordRequest(`/api/heart-five/${encodeURIComponent(recordId)}`, {
+        method: "PUT",
+        body: JSON.stringify({ date, place, mode, shots, finalized: true }),
+      });
+      setAdding(false);
+      setSaveStatus("saved");
+      setMessage("습사 기록을 저장했어요.");
+      await refresh();
+    } catch (error) {
+      setSaveStatus("failed");
+      setMessage(error instanceof Error ? error.message : "기록을 저장하지 못했습니다.");
+    }
   };
 
   const deleteRecord = async (record: RecordItem | { id: string }) => {
@@ -247,6 +275,7 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
       await saveQueue.current.catch(() => undefined);
       await recordRequest(`/api/heart-five/${encodeURIComponent(record.id)}`, { method: "DELETE" });
       if (recordId === record.id) setAdding(false);
+      if (inlineEditingId === record.id) setInlineEditingId(null);
       setExpandedId(null);
       await refresh();
     } catch (error) {
@@ -282,6 +311,7 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
 
   const recordCard = (record: RecordItem) => {
     const expanded = expandedId === record.id;
+    const editingInline = inlineEditingId === record.id;
     const editable = record.own && record.date >= koreanToday();
     const deletable = editable || isAdmin;
     return <article className={`heart-card ${record.mode === "근사" ? "heart-card-near" : ""}`} key={record.id}>
@@ -291,11 +321,18 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
         <b className={!record.unlocked ? "heart-locked" : ""}>{record.unlocked ? expanded ? "⌃" : "⌄" : "🔒 1P 열람"}</b>
       </button>
       {expanded && record.shots && <div className="heart-card-detail">
-        <div className="heart-capture" ref={(node) => { if (node) captureRefs.current.set(record.id, node); else captureRefs.current.delete(record.id); }}>
-          <div className="heart-capture-heading"><strong>心五시 心五중</strong><span>{record.memberName} · {record.date} · {record.place} · {record.mode}</span></div>
-          <ShotTable shots={record.shots} /><ShotSummary shots={record.shots} />
-        </div>
-        <div className="heart-card-actions"><button type="button" onClick={() => void saveImage(record)}>{imageSavedId === record.id ? "저장됐어요" : "이미지 저장"}</button>{imageSavedId === record.id && <span role="status" className="heart-image-saved">이미지가 저장됐어요.</span>}{editable && <button type="button" onClick={() => openRecord(record)}>수정</button>}{deletable && <button type="button" className="danger-button" onClick={() => void deleteRecord(record)}>삭제</button>}</div>
+        {editingInline ? <div className="heart-inline-editor">
+          <div className="heart-editor-head"><label>기록 날짜 <input type="date" min={koreanToday()} value={date} onChange={(event) => { const nextDate = event.target.value; if (!nextDate || nextDate < koreanToday()) return; setDate(nextDate); persist(shots, nextDate, place, mode, true); }} /></label><label>장소<select value={place} onChange={(event) => { setPlace(event.target.value); persist(shots, date, event.target.value, mode, true); }}>{place && !places.includes(place) && <option value={place}>{place} (기존 장소)</option>}{places.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>구분<select value={mode} onChange={(event) => { const nextMode = event.target.value as PracticeMode; setMode(nextMode); persist(shots, date, place, nextMode, true); }}><option value="원사">원사</option><option value="근사">근사</option></select></label></div>
+          <ShotTable shots={shots} onEdit={(index) => { setEditingIndex(index); setPickerOpen(true); }} />
+          <ShotSummary shots={shots} />
+          <div className="heart-card-actions"><span className="heart-save-status" role="status">{saveStatus === "saving" ? "자동저장 중…" : saveStatus === "failed" ? "자동저장 실패" : "자동저장됨"}</span><button type="button" onClick={() => { setInlineEditingId(null); setEditingIndex(null); void refresh(); }}>수정 완료</button></div>
+        </div> : <>
+          <div className="heart-capture" ref={(node) => { if (node) captureRefs.current.set(record.id, node); else captureRefs.current.delete(record.id); }}>
+            <div className="heart-capture-heading"><strong>心五시 心五중</strong><span>{record.memberName} · {record.date} · {record.place} · {record.mode}</span></div>
+            <ShotTable shots={record.shots} /><ShotSummary shots={record.shots} />
+          </div>
+          <div className="heart-card-actions"><button type="button" onClick={() => void saveImage(record)}>{imageSavedId === record.id ? "저장됐어요" : "이미지 저장"}</button>{imageSavedId === record.id && <span role="status" className="heart-image-saved">이미지가 저장됐어요.</span>}{editable && <button type="button" onClick={() => openRecord(record)}>수정</button>}{deletable && <button type="button" className="danger-button" onClick={() => void deleteRecord(record)}>삭제</button>}</div>
+        </>}
       </div>}
       {!record.unlocked && deletable && <div className="heart-card-actions"><button type="button" className="danger-button" onClick={() => void deleteRecord(record)}>삭제</button></div>}
     </article>;
@@ -311,10 +348,10 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
     {tab === "records" && <>
       <div className="heart-list-heading"><h3>내 습사 기록</h3><button type="button" className="primary" onClick={startNew}>추가</button></div>
       {adding && <div className="heart-editor">
-        <div className="heart-editor-head"><label>기록 날짜 <input type="date" min={koreanToday()} value={date} onChange={(event) => { const nextDate = event.target.value; if (!nextDate || nextDate < koreanToday()) return; setDate(nextDate); persist(shots, nextDate, place, mode); }} /></label><label>장소<select value={place} onChange={(event) => { setPlace(event.target.value); persist(shots, date, event.target.value, mode); }}>{place && !places.includes(place) && <option value={place}>{place} (기존 장소)</option>}{places.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>구분<select value={mode} onChange={(event) => { const nextMode = event.target.value as PracticeMode; setMode(nextMode); persist(shots, date, place, nextMode); }}><option value="원사">원사</option><option value="근사">근사</option></select></label><button type="button" onClick={() => { setAdding(false); setPickerOpen(false); }}>닫기</button></div>
+        <div className="heart-editor-head"><label>기록 날짜 <input type="date" min={koreanToday()} value={date} onChange={(event) => { const nextDate = event.target.value; if (!nextDate || nextDate < koreanToday()) return; setDate(nextDate); persist(shots, nextDate, place, mode); }} /></label><label>장소<select value={place} onChange={(event) => { setPlace(event.target.value); persist(shots, date, event.target.value, mode); }}>{place && !places.includes(place) && <option value={place}>{place} (기존 장소)</option>}{places.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>구분<select value={mode} onChange={(event) => { const nextMode = event.target.value as PracticeMode; setMode(nextMode); persist(shots, date, place, nextMode); }}><option value="원사">원사</option><option value="근사">근사</option></select></label></div>
         <ShotTable shots={shots} active={date >= koreanToday()} onNext={() => { setEditingIndex(null); setPickerOpen(true); }} onEdit={editMode && date >= koreanToday() ? (index) => { setEditingIndex(index); setPickerOpen(true); } : undefined} />
         <ShotSummary shots={shots} />
-        <div className="heart-actions"><button type="button" disabled={date < koreanToday()} onClick={() => setEditMode(!editMode)}>{editMode ? "수정 완료" : "수정"}</button>{editMode && <button type="button" disabled={!shots.length || date < koreanToday()} onClick={() => { if (shots.length === 1) { void deleteRecord({ id: recordId }); return; } const nextShots = shots.slice(0, -1); setShots(nextShots); persist(nextShots, date, place, mode); }}>마지막 발 삭제</button>}<span className="heart-save-status" role="status">{saveStatus === "saving" ? "자동저장 중…" : saveStatus === "failed" ? "자동저장 실패" : saveStatus === "saved" ? "자동저장됨" : ""}</span>{saveStatus === "failed" && <button type="button" onClick={() => persist(shots, date, place, mode)}>다시 시도</button>}</div>
+        <div className="heart-actions"><button type="button" disabled={date < koreanToday()} onClick={() => setEditMode(!editMode)}>{editMode ? "수정 완료" : "수정"}</button>{editMode && <button type="button" disabled={!shots.length || date < koreanToday()} onClick={() => { if (shots.length === 1) { void deleteRecord({ id: recordId }); return; } const nextShots = shots.slice(0, -1); setShots(nextShots); persist(nextShots, date, place, mode); }}>마지막 발 삭제</button>}<span className="heart-save-status" role="status">{saveStatus === "saving" ? "자동저장 중…" : saveStatus === "failed" ? "자동저장 실패" : saveStatus === "saved" ? "자동저장됨" : ""}</span>{saveStatus === "failed" && <button type="button" onClick={() => persist(shots, date, place, mode)}>다시 시도</button>}<button type="button" className="primary heart-save-button" onClick={() => void saveDraft()}>저장</button></div>
         {editMode && <small className="heart-hint">수정할 칸을 누른 뒤 방향 또는 과녁을 다시 선택하세요.</small>}
       </div>}
       {loading ? <p className="heart-empty">기록을 불러오는 중이에요…</p> : mine.length ? <div className="heart-card-list">{mine.map(recordCard)}</div> : <p className="heart-empty">아직 저장한 습사 기록이 없어요.</p>}

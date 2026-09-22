@@ -22,6 +22,7 @@ import {
 
 type Session = { id: string; name: string; role: "관리자" | "회원"; team?: string };
 type EquipmentStatKey = "total" | "available" | "unavailable" | "rented" | "lost" | "damaged";
+const rentalSystemVisible = false;
 export type EquipmentDraft =
   | { kind: "bow"; pound: string; length: string; side: "좌궁" | "우궁"; note?: string }
   | { kind: "arrow"; lengthWeight: string; index: string; indexNumber: string; note?: string };
@@ -201,13 +202,13 @@ export default function EquipmentManagement({
 
   return (
     <section className="content equipment-page">
-      <div className="section-head"><div><h2>장비 관리</h2><p>장비 상태와 대여 기록을 함께 관리해요.</p></div></div>
-      <div className="equipment-main-tabs">
+      <div className="section-head"><div><h2>장비 관리</h2><p>보유 장비와 현재 상태를 관리해요.</p></div></div>
+      {rentalSystemVisible && <div className="equipment-main-tabs">
         <button className={tab === "inventory" ? "active" : ""} onClick={() => setTab("inventory")}>장비 현황</button>
         <button className={tab === "rentals" ? "active" : ""} onClick={() => setTab("rentals")}>장비 대여</button>
-      </div>
+      </div>}
 
-      {tab === "inventory" ? <>
+      {tab === "inventory" || !rentalSystemVisible ? <>
         <section className="equipment-stat-panel">
           <div className="equipment-stat-grid">
             {equipmentStats.map((stat) => <button key={stat.key} className={openStat === stat.key ? "active" : ""} onClick={() => setOpenStat((current) => current === stat.key ? null : stat.key)}><span>{stat.label}</span><strong>{stat.items.length}<i>개</i></strong></button>)}
