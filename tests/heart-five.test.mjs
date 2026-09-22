@@ -20,8 +20,19 @@ test("partial and invalid rounds cannot be saved", () => {
   assert.equal(isCompleteRecord(["中", "中", "中", "中", "invalid"]), false);
 });
 
+test("partial next round is kept but excluded from completed-round statistics", () => {
+  assert.deepEqual(recordStats(["中", "中", "↗", "↓", "中", "中"]), {
+    hits: 3,
+    best: 3,
+    rounds: 1,
+    shotCount: 6,
+    average: 3,
+  });
+});
+
 test("saved record parsing rejects malformed data", () => {
   const valid = { ownerUid: "uid", memberId: "123", memberName: "회원", date: "2026-09-22", createdAt: "2026-09-22T12:00:00.000Z", shots: ["中", "↗", "中", "↓", "中"] };
   assert.deepEqual(parseHeartFiveRecord("record-1", valid), { id: "record-1", ...valid });
-  assert.equal(parseHeartFiveRecord("record-2", { ...valid, shots: ["中"] }), null);
+  assert.deepEqual(parseHeartFiveRecord("record-2", { ...valid, shots: ["中"] })?.shots, ["中"]);
+  assert.equal(parseHeartFiveRecord("record-3", { ...valid, shots: ["bad"] }), null);
 });
