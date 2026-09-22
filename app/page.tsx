@@ -61,7 +61,6 @@ type Member = {
   role: "관리자" | "회원";
   position?: "대표" | "부대표" | "교육팀장" | "장비팀장" | "홍보팀장" | "";
   team?: TeamName | "";
-  practicePermission?: boolean;
 };
 const teamForPosition = (position?: Member["position"]): TeamName | "" => {
   if (position === "대표" || position === "부대표") return "대표팀";
@@ -2114,10 +2113,6 @@ export default function Home() {
     notify(message);
   };
   const toggleJoin = (id: number) => {
-    if (session.grade === "예비신사" && !session.practicePermission) {
-      notify("예비신사는 운영진이 습사 권한을 부여한 뒤 신청할 수 있어요");
-      return;
-    }
     const practice = practices.find((item) => item.id === id);
     if (practice?.applicants.includes(session.name)) {
       setCancelTarget(id);
@@ -2461,15 +2456,6 @@ export default function Home() {
             <button
               className="primary add-button"
               onClick={() => {
-                if (
-                  session.grade === "예비신사" &&
-                  !session.practicePermission
-                ) {
-                  notify(
-                    "예비신사는 운영진이 습사 권한을 부여한 뒤 일정을 추가할 수 있어요",
-                  );
-                  return;
-                }
                 setShowForm(true);
               }}
               aria-label="습사 등록"
@@ -2772,11 +2758,22 @@ export default function Home() {
             return true;
           }}
           onUpdateMember={(member) => {
+            const previous = clubMembers.find((item) => item.id === member.id);
+            if (!previous) {
+              notify("수정할 회원 정보를 찾지 못했어요");
+              return false;
+            }
+            if (previous.role === "관리자" && member.role === "회원" && clubMembers.filter((item) => item.role === "관리자").length === 1) {
+              notify("마지막 관리자의 권한은 해제할 수 없어요");
+              return false;
+            }
+            if (previous.role !== member.role && !window.confirm(`${member.name}님의 관리자 권한을 ${member.role === "관리자" ? "부여" : "해제"}할까요?`)) return false;
             setClubMembers((all) =>
               all.map((m) => (m.id === member.id ? member : m)),
             );
             if (session.id === member.id) setSession(member);
             notify("회원 정보를 수정했어요");
+            return true;
           }}
           onTeamChange={(id, team) => {
             const target = clubMembers.find((member) => member.id === id);
@@ -3721,7 +3718,7 @@ function Members({
   currentTerm: string;
   onCurrentTermChange: (term: string) => void;
   onAddMember: (member: Member) => boolean;
-  onUpdateMember: (member: Member) => void;
+  onUpdateMember: (member: Member) => boolean;
   onTeamChange: (id: string, team: Member["team"]) => void;
   onCleanupAuth: (studentId: string) => Promise<boolean>;
   onRoleChange: (id: string, role: Member["role"]) => void;
@@ -3885,8 +3882,7 @@ function Members({
           currentTerm={currentTerm}
           onClose={() => setEditingMember(null)}
           onSave={(member) => {
-            onUpdateMember(member);
-            setEditingMember(null);
+            if (onUpdateMember(member)) setEditingMember(null);
           }}
         />
       )}
@@ -3902,13 +3898,17 @@ function MemberForm({
   initial?: Member;
   currentTerm: string;
   onClose: () => void;
-  onSave: (member: Member) => void;
+  onSave: (member: Member) => boolean | void;
 }) {
   const initialJoinTerm = typeof initial?.joinTerm === "string" && /^\d{2}-[12]$/.test(initial.joinTerm)
     ? initial.joinTerm
     : currentTerm;
   const [joinTerm, setJoinTerm] = useState(initialJoinTerm);
-  const [practicePermission, setPracticePermission] = useState(Boolean(initial?.practicePermission));
+  const [name, setName] = useState(typeof initial?.name === "string" ? initial.name : "");
+  const [studentId, setStudentId] = useState(typeof initial?.id === "string" ? initial.id : "");
+  const [role, setRole] = useState<Member["role"]>(initial?.role === "관리자" ? "관리자" : "회원");
+  const [position, setPosition] = useState<Member["position"]>(initial?.position || "");
+  const [team, setTeam] = useState<Member["team"]>(normalizeMemberTeam(initial || { id: "", name: "", joinTerm: currentTerm, grade: "예비신사", role: "회원" }));
   const grade = /^\d{2}-[12]$/.test(joinTerm)
     ? gradeFor(joinTerm, currentTerm)
     : "예비신사";
@@ -3921,16 +3921,15 @@ function MemberForm({
         className="modal member-form"
         onSubmit={(e) => {
           e.preventDefault();
-          const f = new FormData(e.currentTarget);
+          const positionTeam = teamForPosition(position);
           onSave({
-            id: String(f.get("id")),
-            name: String(f.get("name")),
+            id: studentId.trim(),
+            name: name.trim(),
             joinTerm,
             grade,
-            role: initial?.role || "회원",
-            position: initial?.position || "",
-            team: initial?.team || "",
-            practicePermission: grade === "예비신사" ? practicePermission : undefined,
+            role,
+            position,
+            team: positionTeam || team || "",
           });
         }}
       >
@@ -3946,23 +3945,26 @@ function MemberForm({
         <label>
           이름
           <input
-            name="name"
             required
             placeholder="홍길동"
-            defaultValue={initial?.name}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            readOnly={Boolean(initial)}
           />
+          {initial && <small className="field-help">이름은 계정 정보이므로 변경할 수 없어요.</small>}
         </label>
         <label>
           학번
           <input
-            name="id"
             required
             inputMode="numeric"
             pattern="[0-9]+"
             placeholder="2026123456"
-            defaultValue={initial?.id}
+            value={studentId}
+            onChange={(event) => setStudentId(event.target.value.replace(/\D/g, ""))}
             readOnly={Boolean(initial)}
           />
+          {initial && <small className="field-help">학번은 로그인 계정과 연결되어 있어 변경할 수 없어요.</small>}
         </label>
         <label>
           입부 학기
@@ -3982,19 +3984,39 @@ function MemberForm({
           <b>{grade}</b>
           <small>현재 학기 {currentTerm} 기준</small>
         </div>
-        {initial && grade === "예비신사" && (
-          <label className="practice-permission-toggle">
-            <input
-              type="checkbox"
-              checked={practicePermission}
-              onChange={(event) => setPracticePermission(event.target.checked)}
-            />
-            <span>
-              <b>습사 일정 권한 허용</b>
-              <small>이 예비신사가 습사 일정을 추가하고 참가 신청할 수 있어요.</small>
-            </span>
+        {initial && <>
+          <label>
+            계정 권한
+            <select value={role} onChange={(event) => setRole(event.target.value as Member["role"])}>
+              <option value="회원">회원</option>
+              <option value="관리자">관리자</option>
+            </select>
           </label>
-        )}
+          <label>
+            운영 직책
+            <select value={position} onChange={(event) => {
+              const next = event.target.value as Member["position"];
+              setPosition(next);
+              const fixedTeam = teamForPosition(next);
+              if (fixedTeam) setTeam(fixedTeam);
+            }}>
+              <option value="">없음</option>
+              <option value="대표">대표</option>
+              <option value="부대표">부대표</option>
+              <option value="교육팀장">교육팀장</option>
+              <option value="장비팀장">장비팀장</option>
+              <option value="홍보팀장">홍보팀장</option>
+            </select>
+          </label>
+          <label>
+            소속 팀
+            <select value={team || ""} disabled={Boolean(teamForPosition(position))} onChange={(event) => setTeam(event.target.value as Member["team"])}>
+              <option value="">없음</option>
+              {teamNames.map((item) => <option value={item} key={item}>{item}</option>)}
+            </select>
+            {teamForPosition(position) && <small className="field-help">선택한 직책에 맞춰 소속 팀이 자동 지정돼요.</small>}
+          </label>
+        </>}
         <div className="modal-actions">
           <button type="button" onClick={onClose}>
             취소
