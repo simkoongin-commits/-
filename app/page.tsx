@@ -27,6 +27,7 @@ import sanitizeHtml from "sanitize-html";
 import { auth, db, storage } from "@/lib/firebase";
 import EquipmentManagement, { type EquipmentDraft } from "@/app/components/EquipmentManagement";
 import Statistics from "@/app/components/Statistics";
+import HeartFive from "@/app/components/HeartFive";
 import {
   assignBowIndexes,
   bowGroupKey,
@@ -137,7 +138,8 @@ type MemberView =
   | "members"
   | "hall"
   | "equipment"
-  | "statistics";
+  | "statistics"
+  | "heartFive";
 type PromoTab = "home" | "qa" | "posts";
 type AppNavigationState = {
   simkoong: true;
@@ -2442,6 +2444,9 @@ export default function Home() {
         <button className={view === "equipment" ? "active" : ""} onClick={() => { setView("equipment"); setMenuOpen(false); }}>
           <span>⌁</span>장비 관리
         </button>
+        <button className={view === "heartFive" ? "active" : ""} onClick={() => { setView("heartFive"); setMenuOpen(false); }}>
+          <span>◎</span>心5시 心5중
+        </button>
       </nav>
       {view === "cards" && (
         <section className="content">
@@ -2847,6 +2852,9 @@ export default function Home() {
           withdrawals={withdrawals}
           hall={hallOfFame}
         />
+      )}
+      {view === "heartFive" && (
+        <HeartFive ownerUid={authUser.uid} memberId={session.id} memberName={session.name} />
       )}
       {view === "equipment" && (
         <EquipmentManagement

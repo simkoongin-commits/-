@@ -3095,3 +3095,68 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .install-prompt-primary, .install-prompt-today { width: 100%; min-height: 44px; border-radius: 12px; font-weight: 900; }
 .install-prompt-primary { margin-top: 18px; border: 0; background: #1684c3; color: #fff; box-shadow: 0 8px 18px rgba(22, 132, 195, .25); font-size: 14px; }
 .install-prompt-today { margin-top: 8px; border: 1px solid #c8e3ef; background: #fff; color: #527b91; font-size: 12px; }
+
+/* 心5시 心5중 기록과 전체 회원 통계 */
+.heart-five { padding-bottom: 100px; }
+.heart-tabs { display: flex; gap: 8px; margin: 20px 0; }
+.heart-tabs button { min-height: 42px; padding: 0 17px; border: 1px solid #cfe3ee; border-radius: 12px; background: #fff; color: #638497; font-weight: 800; }
+.heart-tabs button.active { border-color: #2486b8; background: #e8f6fc; color: #146c9e; }
+.heart-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
+.heart-list-heading h3 { margin: 0; color: #224e68; font-size: 19px; }
+.heart-list-heading > span { color: #7895a3; font-size: 12px; }
+.heart-list-heading .primary, .heart-actions .primary { padding: 10px 18px; border: 0; border-radius: 10px; background: #197caf; color: #fff; font-weight: 800; }
+.heart-editor, .heart-card { border: 1px solid #d1e6f0; border-radius: 17px; background: #fff; box-shadow: 0 5px 22px #2d85ad10; }
+.heart-editor { margin: 12px 0 22px; padding: 17px; }
+.heart-editor-head, .heart-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.heart-editor-head label, .heart-filters label { display: grid; gap: 6px; color: #4d7186; font-size: 12px; font-weight: 800; }
+.heart-editor-head input, .heart-filters input, .heart-filters select { min-height: 38px; padding: 6px 9px; border: 1px solid #c9dfe9; border-radius: 9px; background: #fff; color: #315f78; font: inherit; }
+.heart-editor-head > button, .heart-actions > button:not(.primary), .heart-filters > button { padding: 9px 12px; border: 1px solid #c9dfe9; border-radius: 9px; background: #f8fcfe; color: #557d91; font-weight: 700; }
+.heart-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid #d5e6ed; border-radius: 12px; }
+.heart-table { width: 100%; min-width: 550px; border-collapse: collapse; table-layout: fixed; text-align: center; }
+.heart-table th, .heart-table td { height: 50px; border-right: 1px solid #dbeaf0; border-bottom: 1px solid #dbeaf0; color: #294f67; }
+.heart-table th:last-child, .heart-table td:last-child { border-right: 0; }
+.heart-table tbody tr:last-child th, .heart-table tbody tr:last-child td { border-bottom: 0; }
+.heart-table thead th { background: #e9f6fc; font-size: 12px; }
+.heart-table tbody th { width: 63px; background: #f5fafc; font-size: 12px; }
+.heart-table td { background: #fff; font-size: 22px; }
+.heart-table td.heart-round-score { background: #f7faf1; color: #567a3c; font-size: 15px; font-weight: 850; }
+.heart-hit { color: #d73232; font-weight: 900; }
+.heart-miss { color: #4e7b95; }
+.heart-next-shot { width: 37px; height: 37px; border: 1px solid #8bcae7; border-radius: 50%; background: #eaf8ff; color: #197aaf; font-size: 22px; font-weight: 800; }
+.heart-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 12px 0; }
+.heart-summary span { min-width: 0; padding: 10px 5px; border-radius: 10px; background: #f0f8fc; text-align: center; }
+.heart-summary small, .heart-summary strong { display: block; }
+.heart-summary small { color: #7793a3; font-size: 10px; }
+.heart-summary strong { margin-top: 4px; color: #1d648b; font-size: 12px; overflow-wrap: anywhere; }
+.heart-actions { justify-content: flex-end; margin: 12px 0 0; }
+.heart-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.heart-hint { display: block; margin-top: 8px; color: #7794a2; text-align: right; }
+.heart-error { padding: 10px 12px; border-radius: 10px; background: #fff0ef; color: #aa4740; font-size: 12px; }
+.heart-empty { padding: 30px 15px; border-radius: 13px; background: #eff7fa; color: #7792a1; text-align: center; font-size: 13px; }
+.heart-card-list { display: grid; gap: 10px; }
+.heart-card { overflow: hidden; }
+.heart-card-main { width: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 17px; border: 0; background: transparent; color: #547b8f; text-align: left; }
+.heart-card-main strong { color: #205b7c; font-size: 16px; }
+.heart-card-main span { font-size: 12px; }
+.heart-card-main b { margin-left: auto; color: #4382a4; }
+.heart-card-detail { padding: 0 15px 15px; }
+.heart-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; margin: 0 0 17px; }
+.heart-filters select { min-width: 140px; }
+.heart-picker-backdrop { position: fixed; z-index: 180; inset: 0; display: grid; place-items: center; padding: 20px; background: #12334f91; }
+.heart-picker { width: min(420px, 100%); padding: 18px; border-radius: 20px; background: #fff; box-shadow: 0 22px 70px #082c4b5c; }
+.heart-picker-heading { display: flex; justify-content: space-between; align-items: center; color: #204c68; font-size: 18px; }
+.heart-picker-heading button { border: 0; background: transparent; color: #7995a3; font-size: 28px; }
+.heart-picker > p { margin: 5px 0 14px; color: #7893a2; font-size: 12px; }
+.heart-direction-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 60px 138px 60px; gap: 7px; }
+.heart-direction-grid > button:not(.heart-target) { border: 1px solid #c9e3ee; border-radius: 12px; background: #f0f9fc; color: #277ca7; font-size: 29px; }
+.heart-direction-grid > button:not(.heart-target):hover { background: #d8eff9; }
+.heart-target { display: grid; grid-template-rows: 25% 75%; padding: 7px; border: 2px solid #1d1d1d; background: #fff; }
+.heart-target-bar { width: 72%; height: 100%; justify-self: center; background: #111; }
+.heart-target-face { width: 72%; height: 91%; justify-self: center; align-self: end; display: grid; place-items: center; background: #111; }
+.heart-target-face > span { width: 73%; aspect-ratio: 1; border-radius: 50%; background: #f00; }
+@media (max-width: 500px) {
+  .heart-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .heart-card-main { gap: 5px 9px; }
+  .heart-card-main strong { width: 100%; }
+  .heart-direction-grid { grid-template-rows: 53px 120px 53px; }
+}
