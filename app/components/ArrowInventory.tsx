@@ -57,7 +57,7 @@ export default function ArrowInventory({ arrows, canManage, onAdd, onOpen, onDel
   return <div className="arrow-tree">
     {canManage && <div className="arrow-bulk-toolbar">
       <span>화살을 길게 누르거나 선택 시작을 눌러 여러 분류에서 선택하세요.</span>
-      {selectionMode ? <><b>{selectedIds.length}개 선택</b><button onClick={closeSelection}>취소</button><button className="danger" disabled={deleting || selectedIds.length === 0} onClick={() => void deleteSelected()}>선택 삭제</button></> : <button onClick={() => setSelectionMode(true)}>선택 시작</button>}
+      {selectionMode ? <><b>{selectedIds.length}개 선택</b><button onClick={closeSelection}>취소</button><button className="danger" disabled={deleting || selectedIds.length === 0} onClick={() => void deleteSelected()}>삭제</button></> : <button onClick={() => setSelectionMode(true)}>선택 시작</button>}
     </div>}
     {groups.size ? [...groups].map(([lengthWeight, indexes]) => <details key={lengthWeight}>
       <summary><span>{lengthWeight}</span><span className="arrow-summary-actions"><small>{[...indexes.values()].flat().length}개</small>{canManage && <button onClick={(event) => { event.preventDefault(); onAdd({ lengthWeight }); }}>+</button>}</span></summary>

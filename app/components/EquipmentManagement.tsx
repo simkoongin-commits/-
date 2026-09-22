@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import ArrowInventory from "@/app/components/ArrowInventory";
 import EquipmentCard from "@/app/components/EquipmentCard";
+import EquipmentDetailModal from "@/app/components/EquipmentDetailModal";
 import {
   assignBowIndexes,
   bowGroupKey,
@@ -67,6 +68,7 @@ export default function EquipmentManagement({
   session,
   onAddEquipment,
   onToggleAvailability,
+  onMarkCondition,
   onUpdateEquipmentNote,
   onCreateRental,
   onAddRentalNotes,
@@ -81,6 +83,7 @@ export default function EquipmentManagement({
   session: Session;
   onAddEquipment: (draft: EquipmentDraft | EquipmentDraft[]) => Promise<void>;
   onToggleAvailability: (id: string) => Promise<void>;
+  onMarkCondition: (id: string, condition: "lost" | "damaged", detail?: string) => Promise<void>;
   onUpdateEquipmentNote: (id: string, note: string) => Promise<void>;
   onCreateRental: (itemIds: string[], loanDate: string) => Promise<void>;
   onAddRentalNotes: (rentalId: string, notes: RentalNote[]) => Promise<void>;
@@ -94,8 +97,7 @@ export default function EquipmentManagement({
   const [inventoryTab, setInventoryTab] = useState<"bow" | "arrow">("bow");
   const [adding, setAdding] = useState<"bow" | "arrow" | null>(null);
   const [arrowPreset, setArrowPreset] = useState<{ lengthWeight?: string; index?: string }>({});
-  const [selectedItem, setSelectedItem] = useState<Equipment | null>(null);
-  const [equipmentNote, setEquipmentNote] = useState("");
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [loanDate, setLoanDate] = useState(todayValue);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [noteRental, setNoteRental] = useState<string | null>(null);
@@ -104,6 +106,7 @@ export default function EquipmentManagement({
   const [busy, setBusy] = useState(false);
   const [openStat, setOpenStat] = useState<EquipmentStatKey | null>(null);
   const canManageEquipment = session.role === "관리자" || session.team === "장비팀";
+  const selectedItem = equipment.find((item) => item.id === selectedItemId);
 
   const notify = (text: string) => {
     setMessage(text);
@@ -193,8 +196,7 @@ export default function EquipmentManagement({
   };
   const addNote = (type: RentalNoteType) => setRentalNotes((current) => [...current, { id: makeEquipmentId(), type, itemIds: [] }]);
   const openEquipment = (item: Equipment) => {
-    setSelectedItem(item);
-    setEquipmentNote(item.note || "");
+    setSelectedItemId(item.id);
   };
 
   return (
@@ -259,7 +261,19 @@ export default function EquipmentManagement({
       </>}
 
       {adding && <EquipmentForm kind={adding} arrows={arrows} preset={arrowPreset} busy={busy} onClose={() => setAdding(null)} onSave={(draft) => void run(async () => { await onAddEquipment(draft); setAdding(null); setArrowPreset({}); }, "장비를 등록했어요")} />}
-      {selectedItem && <div className="equipment-modal-back" onClick={() => setSelectedItem(null)}><div className="equipment-modal" onClick={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setSelectedItem(null)}>×</button><span className={`equipment-status ${selectedItem.status}`}>{equipmentUnavailableReason(selectedItem) || "대여 가능"}</span><h3>{equipmentName(selectedItem)}</h3>{selectedItem.holderName && <p>대여: {selectedItem.holderName}</p>}{canManageEquipment ? <label>장비 비고<textarea value={equipmentNote} onChange={(event) => setEquipmentNote(event.target.value)} placeholder="이 장비에 대한 비고를 입력해주세요" /></label> : selectedItem.note && <p>{selectedItem.note}</p>}{canManageEquipment && <div className="equipment-modal-actions"><button onClick={() => void run(async () => { await onUpdateEquipmentNote(selectedItem.id, equipmentNote); setSelectedItem(null); }, "장비 비고를 저장했어요")}>비고 저장</button><button onClick={() => void run(async () => { await onToggleAvailability(selectedItem.id); setSelectedItem(null); }, "대여 가능 설정을 변경했어요")}>{selectedItem.manualAvailable ? "대여 불가능으로 설정" : "대여 가능으로 설정"}</button>{selectedItem.status === "lost" && <button onClick={() => { if (window.confirm("이 장비의 분실 상태를 해제하시겠어요?")) void run(async () => { await onRestoreItem(selectedItem.id, "recover"); setSelectedItem(null); }, "분실물을 회수했어요"); }}>분실물 회수</button>}{selectedItem.status === "damaged" && <button onClick={() => { if (window.confirm("이 장비를 수리 완료 처리하시겠어요?")) void run(async () => { await onRestoreItem(selectedItem.id, "repair"); setSelectedItem(null); }, "수리 완료했어요"); }}>수리 완료</button>}{selectedItem.status === "rented" && selectedItem.activeRentalId && <button onClick={() => { if (window.confirm("이 장비가 포함된 대여를 반납 완료 처리하시겠어요?")) void run(async () => { await onReturnRental(selectedItem.activeRentalId!); setSelectedItem(null); }, "반납 완료했어요"); }}>반납 완료</button>}<button className="danger" onClick={() => { if (!window.confirm(`${equipmentName(selectedItem)} 장비를 삭제할까요? 삭제 후에는 복구할 수 없어요.`)) return; void run(async () => { await onDeleteEquipment(selectedItem.id); setSelectedItem(null); }, "장비를 삭제했어요"); }}>장비 삭제</button></div>}</div></div>}
+      {selectedItem && <EquipmentDetailModal
+        key={selectedItem.id}
+        item={selectedItem}
+        canManage={canManageEquipment}
+        onClose={() => setSelectedItemId(null)}
+        onSaveNote={(note) => onUpdateEquipmentNote(selectedItem.id, note)}
+        onLegacyAvailability={() => onToggleAvailability(selectedItem.id)}
+        onMarkCondition={(condition, detail) => onMarkCondition(selectedItem.id, condition, detail)}
+        onRestore={(action) => onRestoreItem(selectedItem.id, action)}
+        onReturnRental={() => selectedItem.activeRentalId ? onReturnRental(selectedItem.activeRentalId) : Promise.reject(new Error("대여 기록을 찾을 수 없어요."))}
+        onDelete={() => onDeleteEquipment(selectedItem.id)}
+        notify={notify}
+      />}
       {noteRental && <div className="equipment-modal-back"><div className="equipment-modal note-modal"><button className="modal-close" onClick={() => setNoteRental(null)}>×</button><h3>비고 추가</h3><NoteEditor notes={rentalNotes} setNotes={setRentalNotes} availableIds={rentals.find((item) => item.id === noteRental)?.itemIds || []} equipment={equipment} onAdd={addNote} /><button className="primary" disabled={busy || rentalNotes.length === 0} onClick={() => void run(async () => { await onAddRentalNotes(noteRental, rentalNotes); setNoteRental(null); setRentalNotes([]); }, "비고를 추가했어요")}>저장</button></div></div>}
       {message && <div className="toast">{message}</div>}
     </section>
