@@ -35,6 +35,7 @@ export async function migrateLegacyHeartFiveRecords(db: Firestore): Promise<void
           date: parsed.date,
           place: parsed.place,
           mode: parsed.mode,
+          finalized: true,
           createdAt: parsed.createdAt,
           shots: parsed.shots,
           rewarded,

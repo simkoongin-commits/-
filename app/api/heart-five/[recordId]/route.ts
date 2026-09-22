@@ -19,9 +19,10 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ rec
     if (!auth?.member) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
     const { recordId } = await context.params;
     if (!validRecordId(recordId)) return NextResponse.json({ error: "기록을 확인해주세요." }, { status: 400 });
-    const body = await request.json().catch(() => ({})) as { date?: unknown; place?: unknown; mode?: unknown; shots?: unknown };
+    const body = await request.json().catch(() => ({})) as { date?: unknown; place?: unknown; mode?: unknown; shots?: unknown; finalized?: unknown };
     if (!validDate(body.date) || typeof body.place !== "string" || !body.place.trim() || body.place.length > 100
       || (body.mode !== undefined && body.mode !== "원사" && body.mode !== "근사")
+      || (body.finalized !== undefined && typeof body.finalized !== "boolean")
       || !Array.isArray(body.shots) || body.shots.length < 1 || body.shots.length > 5000 || !body.shots.every(isShotMark)) {
       return NextResponse.json({ error: "날짜, 장소와 시위 기록을 확인해주세요." }, { status: 400 });
     }
@@ -41,8 +42,10 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ rec
       if (current && current.date < today) return { error: "지난 날짜의 기록은 수정할 수 없습니다.", status: 403 };
       if (!current && body.date! < today) return { error: "지난 날짜로 새 기록을 추가할 수 없습니다.", status: 400 };
       if (!availablePlaces.includes(place) && current?.place !== place) return { error: "장소 선택지에서 장소를 골라주세요.", status: 400 };
+      const finalized = body.finalized === true || (body.finalized === undefined && current?.finalized === true);
+      if (finalized && (shots.length < 5 || shots.length % 5 !== 0)) return { error: "한 순을 모두 입력한 뒤 저장해주세요.", status: 400 };
       const alreadyRewarded = currentSnapshot.data()?.rewarded === true;
-      const award = newlyEarnedPoints(alreadyRewarded, shots);
+      const award = finalized ? newlyEarnedPoints(alreadyRewarded, shots) : 0;
       const rewarded = alreadyRewarded || award > 0;
       transaction.set(recordRef, {
         ownerUid: auth.uid,
@@ -51,6 +54,7 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ rec
         date: body.date,
         place,
         mode: body.mode || current?.mode || "원사",
+        finalized,
         createdAt: current?.createdAt || new Date().toISOString(),
         shots,
         rewarded,

@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const records = recordsSnapshot.docs
       .map((item) => parseHeartFiveRecord(item.id, item.data()))
       .filter((item): item is NonNullable<typeof item> => item !== null)
-      .filter((item) => item.ownerUid === auth.uid || item.shots.length >= 5)
+      .filter((item) => item.ownerUid === auth.uid || (item.finalized && item.shots.length >= 5))
       .sort(compareHeartFiveRecords)
       .map((record) => {
         const own = record.ownerUid === auth.uid;
@@ -32,10 +32,11 @@ export async function GET(request: NextRequest) {
           date: record.date,
           place: record.place,
           mode: record.mode,
+          finalized: record.finalized,
           createdAt: record.createdAt,
           own,
           unlocked,
-          completed: record.shots.length >= 5,
+          completed: record.finalized && record.shots.length >= 5,
           shots: unlocked ? record.shots : null,
           stats: unlocked ? stats : null,
           hits: stats.hits,

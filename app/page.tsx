@@ -307,7 +307,8 @@ const defaultPublicPosts: PublicPost[] = [
 ];
 
 const termIndex = (term: string) => {
-  const [year, semester] = term.split("-").map(Number);
+  const safeTerm = typeof term === "string" && /^\d{2}-[12]$/.test(term) ? term : "00-1";
+  const [year, semester] = safeTerm.split("-").map(Number);
   return year * 2 + semester - 1;
 };
 const gradeFor = (joinTerm: string, currentTerm: string): Member["grade"] => {
@@ -2443,8 +2444,8 @@ export default function Home() {
         <button className={view === "hall" ? "active" : ""} onClick={() => { setView("hall"); setMenuOpen(false); }}>
           <span>♛</span>명예의 전당
         </button>
-        <button className={view === "statistics" ? "active" : ""} onClick={() => { setView("statistics"); setMenuOpen(false); }}>
-          <span>▥</span>통계
+        <button className={view === "statistics" ? "active" : ""} aria-disabled={session.grade === "예비신사"} onClick={() => { if (session.grade === "예비신사") { notify("통계는 신사와 구사만 볼 수 있어요"); return; } setView("statistics"); setMenuOpen(false); }}>
+          <span>▥</span>{session.grade === "예비신사" ? "🔒 통계" : "통계"}
         </button>
         <button className={view === "equipment" ? "active" : ""} onClick={() => { setView("equipment"); setMenuOpen(false); }}>
           <span>⌁</span>장비 관리
@@ -2846,7 +2847,7 @@ export default function Home() {
           onChange={(next) => setHallOfFame(normalizeHall(next))}
         />
       )}
-      {view === "statistics" && (
+      {view === "statistics" && session.grade !== "예비신사" && (
         <Statistics
           members={clubMembers}
           currentTerm={currentTerm}
@@ -2854,6 +2855,9 @@ export default function Home() {
           withdrawals={withdrawals}
           hall={hallOfFame}
         />
+      )}
+      {view === "statistics" && session.grade === "예비신사" && (
+        <section className="content statistics-locked"><span aria-hidden="true">🔒</span><h2>통계가 잠겨 있어요</h2><p>통계는 신사와 구사 회원만 확인할 수 있어요.</p><button className="primary" onClick={() => setView("cards")}>습사로 돌아가기</button></section>
       )}
       {view === "heartFive" && (
         <HeartFive places={practicePlaces} isAdmin={session.role === "관리자"} />
@@ -3900,7 +3904,10 @@ function MemberForm({
   onClose: () => void;
   onSave: (member: Member) => void;
 }) {
-  const [joinTerm, setJoinTerm] = useState(initial?.joinTerm || currentTerm);
+  const initialJoinTerm = typeof initial?.joinTerm === "string" && /^\d{2}-[12]$/.test(initial.joinTerm)
+    ? initial.joinTerm
+    : currentTerm;
+  const [joinTerm, setJoinTerm] = useState(initialJoinTerm);
   const [practicePermission, setPracticePermission] = useState(Boolean(initial?.practicePermission));
   const grade = /^\d{2}-[12]$/.test(joinTerm)
     ? gradeFor(joinTerm, currentTerm)
