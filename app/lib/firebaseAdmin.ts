@@ -3,6 +3,7 @@ export type StoredMember = {
   name?: string;
   role: "관리자" | "회원";
   grade?: "예비신사" | "신사" | "구사";
+  joinTerm?: string;
   team?: string;
   position?: string;
 };

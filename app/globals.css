@@ -1882,6 +1882,7 @@ body {
 .team-members > span.team-leader i { background: #ffe58b; color: #795a00; }
 .team-members > span em { color: #ad8300; font-size: 9px; font-style: normal; font-weight: 900; }
 .team-members > span button { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: #fff; color: #8298a3; }
+.team-members > span small { color: #567b8f; font-size: 9px; font-weight: 750; }
 .team-members > p { margin: 4px 0; color: #8a9da7; font-size: 11px; }
 .orphan-account-cleanup { margin-top: 14px; padding: 14px; border: 1px dashed #c9dfe9; border-radius: 14px; background: #f5fafc; }
 .orphan-account-cleanup b, .orphan-account-cleanup small { display: block; }
@@ -2842,6 +2843,29 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .equipment-card small { margin-top: auto; color: #3c9160; font-size: 10px; font-weight: 750; }
 .equipment-card.unavailable { border-color: #e0e6e8; background: #f5f7f8; }
 .equipment-card.unavailable b, .equipment-card.unavailable small { color: #9aa7ad; }
+.equipment-card.bulk-selected { position: relative; border-color: #1588c8; background: #e9f8ff; box-shadow: 0 0 0 2px #64c9f580; }
+.equipment-card .bulk-check { position: absolute; right: 10px; top: 10px; background: #1685bd; color: #fff; }
+.arrow-bulk-toolbar { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: 12px; background: #eaf6fc; }
+.arrow-bulk-hint { margin: 0; color: #638da3; font-size: 11px; }
+.arrow-bulk-toolbar b { margin-right: auto; color: #145d85; }
+.arrow-bulk-toolbar button { padding: 8px 10px; border: 1px solid #c5e3f1; border-radius: 9px; background: #fff; color: #17688f; font-weight: 800; }
+.arrow-bulk-toolbar button.danger { border-color: #f1c7c7; color: #bc3945; }
+.member-delete-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 18px; background: #102d43a8; }
+.member-delete-dialog { width: min(100%, 420px); padding: 22px; border-radius: 18px; background: #fff; box-shadow: 0 20px 65px #061f3770; }
+.member-delete-dialog h3 { margin: 0 0 8px; color: #174e6c; }
+.member-delete-dialog p { color: #5e7989; line-height: 1.5; }
+.member-delete-dialog label { display: grid; gap: 5px; color: #315e76; font-weight: 800; }
+.member-delete-dialog select { padding: 10px; border: 1px solid #cfe1ed; border-radius: 9px; background: #fff; }
+.member-delete-dialog > div { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
+.member-delete-dialog button { padding: 9px 11px; border: 1px solid #cfe1ed; border-radius: 9px; background: #eef7fc; color: #1a658d; font-weight: 800; }
+.member-delete-dialog button:nth-child(2) { background: #1d78ac; color: #fff; }
+.retention-list { display: grid; gap: 10px; margin-top: 12px; }
+.retention-list article { border: 1px solid #d4e7f0; border-radius: 12px; overflow: hidden; }
+.retention-list article > button { width: 100%; display: flex; justify-content: space-between; gap: 8px; padding: 13px; border: 0; background: #f3faff; color: #245c79; text-align: left; }
+.retention-list article > button span { font-size: 10px; }
+.retention-detail { padding: 12px; color: #456f86; }
+.retention-detail h4 { margin: 6px 0 3px; color: #185d85; }
+.retention-detail p { margin: 0 0 8px; line-height: 1.5; }
 .equipment-empty { width: 100%; grid-column: 1 / -1; margin: 0; padding: 24px; border-radius: 14px; background: #edf7fc; color: #7893a3; text-align: center; font-size: 12px; }
 .arrow-tree { display: grid; gap: 10px; }
 .arrow-tree details { overflow: hidden; border: 1px solid #d5e8f2; border-radius: 14px; background: #fff; }

@@ -19,6 +19,7 @@ import {
   onSnapshot,
   runTransaction,
   setDoc,
+  deleteField,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { toPng } from "html-to-image";
@@ -38,11 +39,10 @@ import {
   type RentalNote,
 } from "@/lib/equipment";
 import {
-  archiveAndCountPractice,
-  normalizePracticeStats,
+  calendarArchive,
   type ArchivedPractice,
-  type PracticeStats,
 } from "@/lib/practiceStats";
+import { memberSnapshot, nextTerm, normalizeTermSnapshots, normalizeWithdrawals, termOrder, type TermSnapshot, type WithdrawalRecord, validTerm } from "@/lib/membershipHistory";
 
 type TeamName = "대표팀" | "교육팀" | "장비팀" | "홍보팀" | "지원팀";
 const teamNames: TeamName[] = ["대표팀", "교육팀", "장비팀", "홍보팀", "지원팀"];
@@ -354,10 +354,10 @@ const seedPractices: Practice[] = [
   },
 ];
 const defaultPracticePlaces = ["부천정", "난지국궁장", "살곶이정"];
-const normalizePracticePlaces = (value: unknown, practices: Practice[] = [], archives: ArchivedPractice[] = []) => {
+const normalizePracticePlaces = (value: unknown, practices: Practice[] = []) => {
   const source = Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
-    : [...defaultPracticePlaces, ...practices.map((practice) => practice.place), ...archives.map((practice) => practice.place)];
+    : [...defaultPracticePlaces, ...practices.map((practice) => practice.place)];
   return Array.from(new Set(source.map((place) => place.trim()).filter(Boolean)))
     .sort((a, b) => a.localeCompare(b, "ko"));
 };
@@ -1265,7 +1265,11 @@ export default function Home() {
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [equipmentRentals, setEquipmentRentals] = useState<EquipmentRental[]>([]);
   const [archivedPractices, setArchivedPractices] = useState<ArchivedPractice[]>([]);
-  const [practiceStats, setPracticeStats] = useState<PracticeStats>({});
+  const [termSnapshots, setTermSnapshots] = useState<TermSnapshot[]>([]);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
+  const [deletionTarget, setDeletionTarget] = useState<Member | null>(null);
+  const [deletionTerm, setDeletionTerm] = useState("26-2");
+  const [deletionBusy, setDeletionBusy] = useState(false);
   const [practicePlaces, setPracticePlaces] = useState<string[]>(defaultPracticePlaces);
   const [attendanceOverrides, setAttendanceOverrides] = useState<Record<string, boolean>>({});
   const [menuOpen, setMenuOpen] = useState(false);
@@ -1380,7 +1384,8 @@ export default function Home() {
           equipment: [],
           equipmentRentals: [],
           archivedPractices: [],
-          practiceStats: {},
+          termSnapshots: [],
+          withdrawals: [],
           practicePlaces: defaultPracticePlaces,
           }).catch(() => {
             setAccessError(
@@ -1393,8 +1398,11 @@ export default function Home() {
         const data = snapshot.data();
         const storedEquipment = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
         const storedPractices = preparePractices(data.practices);
-        const storedArchives = Array.isArray(data.archivedPractices) ? data.archivedPractices as ArchivedPractice[] : [];
-        const storedPlaces = normalizePracticePlaces(data.practicePlaces, storedPractices, storedArchives);
+        const storedArchives = Array.isArray(data.archivedPractices) ? (data.archivedPractices as ArchivedPractice[]).map(calendarArchive) : [];
+        if (data.practiceStats || JSON.stringify(data.archivedPractices || []) !== JSON.stringify(storedArchives)) {
+          void setDoc(clubDoc, { practiceStats: deleteField(), archivedPractices: storedArchives }, { merge: true });
+        }
+        const storedPlaces = normalizePracticePlaces(data.practicePlaces, storedPractices);
         const indexedEquipment = assignBowIndexes(storedEquipment);
         if (JSON.stringify(indexedEquipment) !== JSON.stringify(storedEquipment)) {
           void setDoc(clubDoc, { equipment: indexedEquipment }, { merge: true });
@@ -1427,7 +1435,8 @@ export default function Home() {
             equipment: indexedEquipment,
             equipmentRentals: Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [],
             archivedPractices: storedArchives,
-            practiceStats: normalizePracticeStats(data.practiceStats),
+            termSnapshots: normalizeTermSnapshots(data.termSnapshots),
+            withdrawals: normalizeWithdrawals(data.withdrawals),
             practicePlaces: storedPlaces,
           };
           cloudState.current = JSON.stringify(emptyState);
@@ -1438,7 +1447,8 @@ export default function Home() {
           setEquipment(emptyState.equipment);
           setEquipmentRentals(emptyState.equipmentRentals);
           setArchivedPractices(emptyState.archivedPractices);
-          setPracticeStats(emptyState.practiceStats);
+          setTermSnapshots(emptyState.termSnapshots);
+          setWithdrawals(emptyState.withdrawals);
           setPracticePlaces(emptyState.practicePlaces);
           setNeedsBootstrap(true);
           setReady(true);
@@ -1470,7 +1480,8 @@ export default function Home() {
           equipment: indexedEquipment,
           equipmentRentals: Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [],
           archivedPractices: storedArchives,
-          practiceStats: normalizePracticeStats(data.practiceStats),
+          termSnapshots: normalizeTermSnapshots(data.termSnapshots),
+          withdrawals: normalizeWithdrawals(data.withdrawals),
           practicePlaces: storedPlaces,
         };
         cloudState.current = JSON.stringify(next);
@@ -1486,7 +1497,8 @@ export default function Home() {
         setEquipment(next.equipment);
         setEquipmentRentals(next.equipmentRentals);
         setArchivedPractices(next.archivedPractices);
-        setPracticeStats(next.practiceStats);
+        setTermSnapshots(next.termSnapshots);
+        setWithdrawals(next.withdrawals);
         setPracticePlaces(next.practicePlaces);
         setSession(member);
         if (initializedMemberViewFor.current !== authUser.uid) {
@@ -1519,7 +1531,8 @@ export default function Home() {
       equipment,
       equipmentRentals,
       archivedPractices,
-      practiceStats,
+      termSnapshots,
+      withdrawals,
       practicePlaces,
     });
     if (cloudState.current === next) return;
@@ -1537,7 +1550,8 @@ export default function Home() {
       equipment,
       equipmentRentals,
       archivedPractices,
-      practiceStats,
+      termSnapshots,
+      withdrawals,
       practicePlaces,
     }).catch(() => {
       cloudState.current = "";
@@ -1545,7 +1559,7 @@ export default function Home() {
         "공동 데이터 저장에 실패했어요. 잠시 후 다시 시도해주세요.",
       );
     });
-  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, practiceStats, practicePlaces, ready, authUser]);
+  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, termSnapshots, withdrawals, practicePlaces, ready, authUser]);
   useEffect(() => {
     if (!ready || !authUser) return;
     const cleanExpiredRentals = async () => {
@@ -1575,21 +1589,17 @@ export default function Home() {
         const cutoff = Date.now() - 24 * 60 * 60 * 1000;
         const expired = currentPractices.filter((practice) => new Date(`${practice.date}T${practice.end || "23:59"}`).getTime() <= cutoff);
         if (!expired.length) return;
-        let nextStats = normalizePracticeStats(data.practiceStats);
-        const nextArchives = Array.isArray(data.archivedPractices) ? [...data.archivedPractices] as ArchivedPractice[] : [];
-        const members = Array.isArray(data.members) ? data.members as Member[] : [];
+        const nextArchives = Array.isArray(data.archivedPractices) ? (data.archivedPractices as ArchivedPractice[]).map(calendarArchive) : [];
         const archivedIds = new Set(nextArchives.map((practice) => practice.id));
         expired.forEach((practice) => {
           if (archivedIds.has(practice.id)) return;
-          const result = archiveAndCountPractice(nextStats, members, practice);
-          nextStats = result.stats;
-          nextArchives.push(result.archived);
+          nextArchives.push(calendarArchive(practice));
           archivedIds.add(practice.id);
         });
         transaction.set(clubRef, {
           practices: currentPractices.filter((practice) => !expired.some((item) => item.id === practice.id)),
           archivedPractices: nextArchives,
-          practiceStats: nextStats,
+          practiceStats: deleteField(),
         }, { merge: true });
       });
     };
@@ -1598,7 +1608,7 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [ready, authUser]);
   const finishBootstrap = async (member: Member) => {
-    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, practiceStats, practicePlaces };
+    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, termSnapshots, withdrawals, practicePlaces };
     try {
       await setDoc(doc(db, "clubs", "simgunghoe"), next);
       cloudState.current = JSON.stringify(next);
@@ -1763,12 +1773,13 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(""), 1900);
   };
-  const requestAccountDeletion = async (studentId: string, orphanOnly = false) => {
+  const requestAccountDeletion = async (studentId: string, orphanOnly = false, mode: "delete" | "withdraw" = "delete", withdrawnTerm?: string) => {
     const token = await auth.currentUser?.getIdToken();
     if (!token) throw new Error("로그인이 필요해요.");
     const response = await fetch(`/api/admin/members/${encodeURIComponent(studentId)}${orphanOnly ? "?orphanOnly=true" : ""}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, withdrawnTerm }),
     });
     const responseText = await response.text();
     let result: { error?: string } = {};
@@ -1778,6 +1789,32 @@ export default function Home() {
       if (!response.ok) throw new Error("계정 삭제 서버에 일시적인 오류가 있어요. 배포가 완료된 뒤 다시 시도해주세요.");
     }
     if (!response.ok) throw new Error(result.error || "계정을 삭제하지 못했어요.");
+  };
+  const openDeletion = (member: Member) => {
+    setDeletionTarget(member);
+    setDeletionTerm(currentTerm);
+  };
+  const confirmDeletion = async (mode: "delete" | "withdraw") => {
+    const target = deletionTarget;
+    if (!target || deletionBusy) return;
+    if (target.role === "관리자" && clubMembers.filter((member) => member.role === "관리자").length === 1) {
+      notify("마지막 관리자는 삭제할 수 없어요");
+      return;
+    }
+    if (mode === "withdraw" && (!validTerm(deletionTerm) || termOrder(deletionTerm) < termOrder(target.joinTerm))) {
+      notify("탈퇴 학기를 입부 학기 이후로 선택해주세요");
+      return;
+    }
+    if (!window.confirm(`${target.name}님의 ${mode === "withdraw" ? `${deletionTerm} 심궁회 탈퇴` : "계정 삭제"}를 확정할까요? 복구할 수 없어요.`)) return;
+    setDeletionBusy(true);
+    try {
+      await requestAccountDeletion(target.id, false, mode, mode === "withdraw" ? deletionTerm : undefined);
+      setDeletionTarget(null);
+      if (target.id === session.id) await signOut(auth);
+      else notify(mode === "withdraw" ? "탈퇴 기록을 남기고 계정을 삭제했어요" : "계정을 삭제했어요");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "계정을 삭제하지 못했어요");
+    } finally { setDeletionBusy(false); }
   };
   const requestQaChange = async (
     question: PublicQuestion,
@@ -1974,6 +2011,25 @@ export default function Home() {
         throw new Error("대여 기록에 연결된 장비예요. 관련 대여 기록을 먼저 삭제해주세요.");
       }
       transaction.set(clubRef, { equipment: current.filter((item) => item.id !== equipmentId) }, { merge: true });
+    });
+  };
+  const deleteEquipmentMany = async (ids: string[]) => {
+    if (!canManageEquipment) throw new Error("관리자 또는 장비팀만 장비를 삭제할 수 있어요.");
+    if (!ids.length) return;
+    const clubRef = doc(db, "clubs", "simgunghoe");
+    await runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(clubRef);
+      if (!snapshot.exists()) throw new Error("장비 데이터를 불러오지 못했어요.");
+      const data = snapshot.data();
+      const current = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
+      const rentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
+      const selected = current.filter((item) => ids.includes(item.id));
+      if (selected.length !== ids.length || selected.some((item) => item.kind !== "arrow")) throw new Error("화살 선택을 다시 확인해주세요.");
+      if (selected.some((item) => item.status !== "available" || rentals.some((rental) => rental.itemIds.includes(item.id)))) throw new Error("대여·분실·손상 상태 또는 대여 기록이 있는 장비는 삭제할 수 없어요.");
+      const first = selected[0];
+      if (first.kind !== "arrow") throw new Error("화살만 일괄 삭제할 수 있어요.");
+      if (selected.some((item) => item.kind !== "arrow" || item.lengthWeight !== first.lengthWeight || item.index !== first.index)) throw new Error("같은 위계의 화살만 함께 삭제할 수 있어요.");
+      transaction.set(clubRef, { equipment: current.filter((item) => !ids.includes(item.id)) }, { merge: true });
     });
   };
   const saveEducationSchedules = (next: EducationSchedule[]) => {
@@ -2663,6 +2719,9 @@ export default function Home() {
           session={session}
           currentTerm={currentTerm}
           onCurrentTermChange={(term) => {
+            if (termOrder(term) > termOrder(currentTerm)) {
+              setTermSnapshots((all) => [...all.filter((item) => item.term !== currentTerm), { term: currentTerm, members: memberSnapshot(clubMembers) }]);
+            }
             setCurrentTerm(term);
             setClubMembers((all) =>
               all.map((m) => ({ ...m, grade: gradeFor(m.joinTerm, term) })),
@@ -2744,32 +2803,7 @@ export default function Home() {
                 : "관리자 권한을 포기했어요",
             );
           }}
-          onDeleteMember={(member) => {
-            if (member.id === session.id) {
-              notify("내 계정은 프로필에서 탈퇴해주세요");
-              return;
-            }
-            if (
-              member.role === "관리자" &&
-              clubMembers.filter((m) => m.role === "관리자").length === 1
-            ) {
-              notify("마지막 관리자는 삭제할 수 없어요");
-              return;
-            }
-            if (
-              !window.confirm(`${member.name} 회원의 계정 데이터를 삭제할까요?`)
-            )
-              return;
-            const remaining = clubMembers.filter((item) => item.id !== member.id);
-            void requestAccountDeletion(member.id)
-              .then(() => {
-                setClubMembers(remaining);
-                notify("회원 정보와 가입 계정을 완전히 삭제했어요");
-              })
-              .catch((error) =>
-                notify(error instanceof Error ? error.message : "회원 삭제에 실패했어요. 다시 시도해주세요."),
-              );
-          }}
+          onDeleteMember={openDeletion}
         />
       )}
       {view === "hall" && (
@@ -2782,11 +2816,10 @@ export default function Home() {
       )}
       {view === "statistics" && (
         <Statistics
-          session={session}
           members={clubMembers}
           currentTerm={currentTerm}
-          stats={practiceStats}
-          archives={archivedPractices}
+          snapshots={termSnapshots}
+          withdrawals={withdrawals}
           hall={hallOfFame}
         />
       )}
@@ -2803,6 +2836,7 @@ export default function Home() {
           onReturnRental={returnEquipmentRental}
           onRestoreItem={restoreEquipmentItem}
           onDeleteEquipment={deleteEquipment}
+          onDeleteEquipmentMany={deleteEquipmentMany}
           onDeleteRental={deleteEquipmentRental}
         />
       )}
@@ -2866,24 +2900,7 @@ export default function Home() {
             setProfileOpen(false);
             notify("관리자 권한과 운영진 역할을 포기했어요");
           }}
-          onWithdraw={async () => {
-            if (
-              !window.confirm(
-                "정말 탈퇴할까요? 회원 정보와 일정표 접근 권한이 삭제됩니다.",
-              )
-            )
-              return;
-            if (session.role === "관리자" && clubMembers.filter((m) => m.role === "관리자").length === 1) {
-              notify("다른 관리자를 먼저 승급해주세요");
-              return;
-            }
-            try {
-              await requestAccountDeletion(session.id);
-              await signOut(auth);
-            } catch (error) {
-              notify(error instanceof Error ? error.message : "계정을 삭제하지 못했어요.");
-            }
-          }}
+          onWithdraw={async () => openDeletion(session)}
         />
       )}
       {(showForm || editing) && (
@@ -2919,6 +2936,7 @@ export default function Home() {
           }}
         />
       )}
+      {deletionTarget && <div className="member-delete-backdrop" onClick={() => !deletionBusy && setDeletionTarget(null)}><div className="member-delete-dialog" role="dialog" aria-modal="true" aria-label="계정 처리" onClick={(event) => event.stopPropagation()}><h3>{deletionTarget.name} 계정 처리</h3><p>계정 삭제는 탈퇴 통계에 남기지 않아요. 심궁회 탈퇴는 선택한 학기에 탈퇴 기록을 남깁니다.</p><label>탈퇴 학기<select value={deletionTerm} onChange={(event) => setDeletionTerm(event.target.value)}>{Array.from({ length: Math.max(1, termOrder(currentTerm) - termOrder(deletionTarget.joinTerm) + 1) }, (_, index) => { let term = deletionTarget.joinTerm; for (let step = 0; step < index; step += 1) term = nextTerm(term); return term; }).map((term) => <option key={term} value={term}>{term}</option>)}</select></label><div><button disabled={deletionBusy} onClick={() => void confirmDeletion("delete")}>계정 삭제</button><button disabled={deletionBusy} onClick={() => void confirmDeletion("withdraw")}>심궁회 탈퇴</button><button disabled={deletionBusy} onClick={() => setDeletionTarget(null)}>취소</button></div></div></div>}
       {toast && <div className="toast">✓ {toast}</div>}
     </main>
   );
@@ -3763,7 +3781,7 @@ function Members({
                     : "관리자 승급"}
                 </button>
                 <button className="danger" onClick={() => onDeleteMember(m)}>
-                  계정 삭제
+                  계정 처리
                 </button>
               </div>
             )}
@@ -3805,7 +3823,7 @@ function Members({
                 </header>
                 <div className="team-members">
                   {assigned.length ? assigned.map((member) => { const isLeader = member.position === leaderPosition; return (
-                    <span key={member.id} className={isLeader ? "team-leader" : ""}><i>{member.name[0]}</i><b>{member.name}</b>{isLeader && <em>팀장</em>}{session.role === "관리자" && !isLeader && <button onClick={() => onTeamChange(member.id, "")} aria-label={`${member.name} 팀 해제`}>×</button>}</span>
+                    <span key={member.id} className={isLeader ? "team-leader" : ""}><i>{member.name[0]}</i><b>{member.name}</b><small>{member.grade}-{team}</small>{isLeader && <em>팀장</em>}{session.role === "관리자" && !isLeader && <button onClick={() => onTeamChange(member.id, "")} aria-label={`${member.name} 팀 해제`}>×</button>}</span>
                   ); }) : <p>배정된 회원이 없어요.</p>}
                 </div>
               </section>
