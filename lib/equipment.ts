@@ -28,6 +28,17 @@ export type ArrowEquipment = EquipmentBase & {
 };
 
 export type Equipment = BowEquipment | ArrowEquipment;
+
+export const groupArrows = (arrows: ArrowEquipment[]) => {
+  const groups = new Map<string, Map<string, ArrowEquipment[]>>();
+  for (const arrow of arrows) {
+    if (!groups.has(arrow.lengthWeight)) groups.set(arrow.lengthWeight, new Map());
+    const indexes = groups.get(arrow.lengthWeight)!;
+    if (!indexes.has(arrow.index)) indexes.set(arrow.index, []);
+    indexes.get(arrow.index)!.push(arrow);
+  }
+  return groups;
+};
 export type RentalNoteType = "lost" | "damaged" | "custom";
 
 export type RentalNote = {
@@ -49,6 +60,20 @@ export type EquipmentRental = {
   status: "active" | "returned";
   createdAt: string;
   completedAt?: string;
+};
+
+// Validate the entire selection before one transaction removes any item.
+// Arrow category is intentionally unrestricted; active/historical rentals are not.
+export const validateArrowDeletion = (items: Equipment[], rentals: EquipmentRental[], ids: string[]) => {
+  const selectedIds = new Set(ids);
+  const selected = items.filter((item) => selectedIds.has(item.id));
+  if (!ids.length || selectedIds.size !== ids.length || selected.length !== ids.length || selected.some((item) => item.kind !== "arrow")) {
+    throw new Error("화살 선택을 다시 확인해주세요.");
+  }
+  if (selected.some((item) => item.status !== "available" || rentals.some((rental) => rental.itemIds.includes(item.id)))) {
+    throw new Error("대여·분실·손상 상태 또는 대여 기록이 있는 장비는 삭제할 수 없어요.");
+  }
+  return selected;
 };
 
 export const bowGroupKey = (item: Pick<BowEquipment, "pound" | "length" | "side">) =>

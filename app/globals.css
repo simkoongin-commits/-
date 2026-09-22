@@ -1882,7 +1882,6 @@ body {
 .team-members > span.team-leader i { background: #ffe58b; color: #795a00; }
 .team-members > span em { color: #ad8300; font-size: 9px; font-style: normal; font-weight: 900; }
 .team-members > span button { width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: #fff; color: #8298a3; }
-.team-members > span small { color: #567b8f; font-size: 9px; font-weight: 750; }
 .team-members > p { margin: 4px 0; color: #8a9da7; font-size: 11px; }
 .orphan-account-cleanup { margin-top: 14px; padding: 14px; border: 1px dashed #c9dfe9; border-radius: 14px; background: #f5fafc; }
 .orphan-account-cleanup b, .orphan-account-cleanup small { display: block; }
@@ -2845,8 +2844,8 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .equipment-card.unavailable b, .equipment-card.unavailable small { color: #9aa7ad; }
 .equipment-card.bulk-selected { position: relative; border-color: #1588c8; background: #e9f8ff; box-shadow: 0 0 0 2px #64c9f580; }
 .equipment-card .bulk-check { position: absolute; right: 10px; top: 10px; background: #1685bd; color: #fff; }
-.arrow-bulk-toolbar { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: 12px; background: #eaf6fc; }
-.arrow-bulk-hint { margin: 0; color: #638da3; font-size: 11px; }
+.arrow-bulk-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px; border-radius: 12px; background: #eaf6fc; }
+.arrow-bulk-toolbar > span { flex: 1 1 190px; color: #638da3; font-size: 11px; }
 .arrow-bulk-toolbar b { margin-right: auto; color: #145d85; }
 .arrow-bulk-toolbar button { padding: 8px 10px; border: 1px solid #c5e3f1; border-radius: 9px; background: #fff; color: #17688f; font-weight: 800; }
 .arrow-bulk-toolbar button.danger { border-color: #f1c7c7; color: #bc3945; }

@@ -34,6 +34,7 @@ import {
   equipmentName,
   makeEquipmentId,
   releaseEquipment,
+  validateArrowDeletion,
   type Equipment,
   type EquipmentRental,
   type RentalNote,
@@ -43,6 +44,7 @@ import {
   type ArchivedPractice,
 } from "@/lib/practiceStats";
 import { memberSnapshot, nextTerm, normalizeTermSnapshots, normalizeWithdrawals, termOrder, type TermSnapshot, type WithdrawalRecord, validTerm } from "@/lib/membershipHistory";
+import { memberDisplayLabel } from "@/lib/memberDisplay";
 
 type TeamName = "대표팀" | "교육팀" | "장비팀" | "홍보팀" | "지원팀";
 const teamNames: TeamName[] = ["대표팀", "교육팀", "장비팀", "홍보팀", "지원팀"];
@@ -2023,13 +2025,9 @@ export default function Home() {
       const data = snapshot.data();
       const current = Array.isArray(data.equipment) ? data.equipment as Equipment[] : [];
       const rentals = Array.isArray(data.equipmentRentals) ? data.equipmentRentals as EquipmentRental[] : [];
-      const selected = current.filter((item) => ids.includes(item.id));
-      if (selected.length !== ids.length || selected.some((item) => item.kind !== "arrow")) throw new Error("화살 선택을 다시 확인해주세요.");
-      if (selected.some((item) => item.status !== "available" || rentals.some((rental) => rental.itemIds.includes(item.id)))) throw new Error("대여·분실·손상 상태 또는 대여 기록이 있는 장비는 삭제할 수 없어요.");
-      const first = selected[0];
-      if (first.kind !== "arrow") throw new Error("화살만 일괄 삭제할 수 있어요.");
-      if (selected.some((item) => item.kind !== "arrow" || item.lengthWeight !== first.lengthWeight || item.index !== first.index)) throw new Error("같은 위계의 화살만 함께 삭제할 수 있어요.");
-      transaction.set(clubRef, { equipment: current.filter((item) => !ids.includes(item.id)) }, { merge: true });
+      validateArrowDeletion(current, rentals, ids);
+      const selectedIds = new Set(ids);
+      transaction.set(clubRef, { equipment: current.filter((item) => !selectedIds.has(item.id)) }, { merge: true });
     });
   };
   const saveEducationSchedules = (next: EducationSchedule[]) => {
@@ -2319,9 +2317,7 @@ export default function Home() {
           <span className="account-copy">
             <b>{session.name}</b>
             <small>
-              {session.role === "관리자" && session.position
-                ? session.position
-                : session.team || session.grade}{" "}
+              {memberDisplayLabel(session)}{" "}
               · {session.role}
             </small>
           </span>
@@ -3182,9 +3178,7 @@ function Participants({
                   <div>
                     <b>{name}</b>
                     <small>
-                      {member?.role === "관리자" && member.position
-                        ? member.position
-                        : member?.grade || "회원"}
+                      {member ? memberDisplayLabel(member) : "회원"}
                     </small>
                   </div>
                   {started && member ? <label className={`attendance-check ${pending ? "saving" : ""}`}><input type="checkbox" checked={attended} disabled={!canCheck || pending} onChange={() => onToggleAttendance(member.id)} /><span>{pending ? "저장 중" : attended ? "출석" : "확인"}</span></label> : <span>{index + 1}</span>}
@@ -3763,7 +3757,7 @@ function Members({
               </small>
             </div>
             <span className="grade">
-              {m.role === "관리자" && m.position ? m.position : m.grade}
+              {memberDisplayLabel(m)}
             </span>
             <span className="role">{m.role}</span>
             {session.role === "관리자" && (
@@ -3823,7 +3817,7 @@ function Members({
                 </header>
                 <div className="team-members">
                   {assigned.length ? assigned.map((member) => { const isLeader = member.position === leaderPosition; return (
-                    <span key={member.id} className={isLeader ? "team-leader" : ""}><i>{member.name[0]}</i><b>{member.name}</b><small>{member.grade}-{team}</small>{isLeader && <em>팀장</em>}{session.role === "관리자" && !isLeader && <button onClick={() => onTeamChange(member.id, "")} aria-label={`${member.name} 팀 해제`}>×</button>}</span>
+                    <span key={member.id} className={isLeader ? "team-leader" : ""}><i>{member.name[0]}</i><b>{member.name}</b>{isLeader && <em>팀장</em>}{session.role === "관리자" && !isLeader && <button onClick={() => onTeamChange(member.id, "")} aria-label={`${member.name} 팀 해제`}>×</button>}</span>
                   ); }) : <p>배정된 회원이 없어요.</p>}
                 </div>
               </section>

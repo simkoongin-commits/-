@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import ArrowInventory from "@/app/components/ArrowInventory";
+import EquipmentCard from "@/app/components/EquipmentCard";
 import {
   assignBowIndexes,
   bowGroupKey,
   canRentEquipment,
   equipmentName,
   equipmentUnavailableReason,
+  groupArrows,
   makeEquipmentId,
   type ArrowEquipment,
   type BowEquipment,
@@ -32,17 +35,6 @@ const noteLabel: Record<RentalNoteType, string> = {
   lost: "분실",
   damaged: "손상",
   custom: "직접입력",
-};
-
-const groupArrows = (arrows: ArrowEquipment[]) => {
-  const groups = new Map<string, Map<string, ArrowEquipment[]>>();
-  arrows.forEach((arrow) => {
-    if (!groups.has(arrow.lengthWeight)) groups.set(arrow.lengthWeight, new Map());
-    const indexes = groups.get(arrow.lengthWeight)!;
-    if (!indexes.has(arrow.index)) indexes.set(arrow.index, []);
-    indexes.get(arrow.index)!.push(arrow);
-  });
-  return groups;
 };
 
 const groupBows = (bows: BowEquipment[]) => {
@@ -103,9 +95,6 @@ export default function EquipmentManagement({
   const [adding, setAdding] = useState<"bow" | "arrow" | null>(null);
   const [arrowPreset, setArrowPreset] = useState<{ lengthWeight?: string; index?: string }>({});
   const [selectedItem, setSelectedItem] = useState<Equipment | null>(null);
-  const [arrowSelection, setArrowSelection] = useState<{ group: string; ids: string[] } | null>(null);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const suppressArrowClickUntil = useRef(0);
   const [equipmentNote, setEquipmentNote] = useState("");
   const [loanDate, setLoanDate] = useState(todayValue);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -115,15 +104,6 @@ export default function EquipmentManagement({
   const [busy, setBusy] = useState(false);
   const [openStat, setOpenStat] = useState<EquipmentStatKey | null>(null);
   const canManageEquipment = session.role === "관리자" || session.team === "장비팀";
-  const clearLongPress = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); longPressTimer.current = null; };
-  const selectArrow = (item: ArrowEquipment) => {
-    const group = `${item.lengthWeight}\u0000${item.index}`;
-    setArrowSelection((current) => {
-      if (current && current.group !== group) { notify("같은 위계의 화살만 선택할 수 있어요."); return current; }
-      const ids = current?.ids.includes(item.id) ? current.ids.filter((id) => id !== item.id) : [...(current?.ids || []), item.id];
-      return ids.length ? { group, ids } : null;
-    });
-  };
 
   const notify = (text: string) => {
     setMessage(text);
@@ -160,7 +140,6 @@ export default function EquipmentManagement({
       a.indexNumber.localeCompare(b.indexNumber, "ko", { numeric: true })),
     [equipment],
   );
-  const arrowGroups = useMemo(() => groupArrows(arrows), [arrows]);
   const bowGroups = useMemo(() => groupBows(bows), [bows]);
   const indexedEquipment = useMemo(() => assignBowIndexes(equipment), [equipment]);
   const equipmentStats = useMemo(() => ([
@@ -253,11 +232,14 @@ export default function EquipmentManagement({
         {inventoryTab === "bow" ? <div className="bow-inventory">
           <div className="equipment-count"><span>전체 활</span><strong>{bows.length}개</strong></div>
           {bowGroups.size ? <div className="bow-tree">{[...bowGroups].map(([group, items]) => { const sample = items[0]; return items.length === 1 ? <EquipmentCard key={group} item={sample} compact onClick={() => openEquipment(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {items.length}개</small></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>; })}</div> : <Empty text="등록된 활이 없어요." />}
-        </div> : <div className="arrow-tree">
-          {canManageEquipment && <p className="arrow-bulk-hint">화살을 길게 누르면 같은 분류의 화살을 여러 개 선택할 수 있어요.</p>}
-          {arrowSelection && <div className="arrow-bulk-toolbar"><b>{arrowSelection.ids.length}개 선택</b><button onClick={() => setArrowSelection(null)}>선택 취소</button><button className="danger" disabled={busy} onClick={() => { if (!window.confirm(`선택한 화살 ${arrowSelection.ids.length}개를 모두 삭제할까요? 복구할 수 없어요.`)) return; void run(async () => { await onDeleteEquipmentMany(arrowSelection.ids); setArrowSelection(null); }, "선택한 화살을 삭제했어요"); }}>선택 삭제</button></div>}
-          {arrowGroups.size ? [...arrowGroups].map(([group, indexes]) => <details key={group}><summary><span>{group}</span><span className="arrow-summary-actions"><small>{[...indexes.values()].flat().length}개</small>{canManageEquipment && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group }); setAdding("arrow"); }}>+</button>}</span></summary><div>{[...indexes].map(([index, items]) => <details key={index}><summary><span>{index}</span><span className="arrow-summary-actions"><small>{items.length}개</small>{canManageEquipment && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group, index }); setAdding("arrow"); }}>+</button>}</span></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} selected={Boolean(arrowSelection?.ids.includes(item.id))} onPointerDown={() => { if (!canManageEquipment || arrowSelection) return; clearLongPress(); longPressTimer.current = setTimeout(() => { suppressArrowClickUntil.current = Date.now() + 700; selectArrow(item); }, 550); }} onPointerUp={() => clearLongPress()} onPointerLeave={() => clearLongPress()} onContextMenu={(event) => { if (!canManageEquipment) return; event.preventDefault(); clearLongPress(); if (Date.now() < suppressArrowClickUntil.current) return; suppressArrowClickUntil.current = Date.now() + 700; selectArrow(item); }} onClick={() => { if (Date.now() < suppressArrowClickUntil.current) return; if (arrowSelection) selectArrow(item); else openEquipment(item); }} />)}</div></details>)}</div></details>) : <Empty text="등록된 화살이 없어요." />}
-        </div>}
+        </div> : <ArrowInventory
+          arrows={arrows}
+          canManage={canManageEquipment}
+          onAdd={(preset) => { setArrowPreset(preset); setAdding("arrow"); }}
+          onOpen={openEquipment}
+          onDeleteMany={onDeleteEquipmentMany}
+          notify={notify}
+        />}
       </> : <>
         <div className="rental-form-card">
           <div className="rental-form-head"><div><b>{session.name}</b><small>대여할 장비를 선택해주세요.</small></div><label>대여일<input type="date" value={loanDate} onChange={(event) => setLoanDate(event.target.value)} /></label></div>
@@ -316,11 +298,6 @@ function RentalChoice({ item, selected, onClick }: { item: Equipment; selected: 
 function RentalNoteSummary({ note, equipment }: { note: RentalNote; equipment: Equipment[] }) {
   const selected = note.itemIds.map((id) => equipment.find((item) => item.id === id)).filter((item): item is Equipment => Boolean(item));
   return <span className="rental-note-summary"><b>{noteLabel[note.type]}</b>{note.type === "custom" ? <small>{note.text}</small> : groupedEquipmentLabels(selected).map((label) => <small key={label}>{label}</small>)}{note.type === "damaged" && selected.map((item) => note.details?.[item.id] ? <small key={`${note.id}-${item.id}`}>{equipmentName(item)}: {note.details[item.id]}</small> : null)}</span>;
-}
-
-function EquipmentCard({ item, compact = false, selected = false, onClick, onPointerDown, onPointerUp, onPointerLeave, onContextMenu }: { item: Equipment; compact?: boolean; selected?: boolean; onClick: () => void; onPointerDown?: () => void; onPointerUp?: () => void; onPointerLeave?: () => void; onContextMenu?: (event: React.MouseEvent) => void }) {
-  const reason = equipmentUnavailableReason(item);
-  return <button className={`equipment-card ${compact ? "compact-bow" : ""} ${reason ? "unavailable" : ""} ${selected ? "bulk-selected" : ""}`} onClick={onClick} onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onPointerLeave={onPointerLeave} onContextMenu={onContextMenu}>{selected && <span className="bulk-check">✓</span>}<span>{item.kind === "bow" ? "활" : "화살"}</span><b>{equipmentName(item)}</b><small>{reason || "대여 가능"}{item.holderName ? ` · ${item.holderName}` : ""}</small></button>;
 }
 
 function NoteEditor({ notes, setNotes, availableIds, equipment, onAdd }: { notes: RentalNote[]; setNotes: (next: RentalNote[]) => void; availableIds: string[]; equipment: Equipment[]; onAdd: (type: RentalNoteType) => void }) {
