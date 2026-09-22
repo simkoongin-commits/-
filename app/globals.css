@@ -645,6 +645,8 @@ button {
   font-weight: 700;
   color: var(--green);
 }
+.member-list .member-grade { line-height: 1.25; }
+.member-list .member-team-suffix { white-space: nowrap; }
 .role {
   color: var(--muted);
 }
