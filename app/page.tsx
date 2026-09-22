@@ -28,6 +28,7 @@ import { auth, db, storage } from "@/lib/firebase";
 import EquipmentManagement, { type EquipmentDraft } from "@/app/components/EquipmentManagement";
 import Statistics from "@/app/components/Statistics";
 import HeartFive from "@/app/components/HeartFive";
+import { defaultPracticePlaces } from "@/lib/practicePlaces";
 import {
   assignBowIndexes,
   bowGroupKey,
@@ -358,7 +359,6 @@ const seedPractices: Practice[] = [
     note: "개인 활과 장비를 챙겨주세요.",
   },
 ];
-const defaultPracticePlaces = ["부천정", "난지국궁장", "살곶이정"];
 const normalizePracticePlaces = (value: unknown, practices: Practice[] = []) => {
   const source = Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
@@ -2854,7 +2854,7 @@ export default function Home() {
         />
       )}
       {view === "heartFive" && (
-        <HeartFive ownerUid={authUser.uid} memberId={session.id} memberName={session.name} />
+        <HeartFive places={practicePlaces} isAdmin={session.role === "관리자"} />
       )}
       {view === "equipment" && (
         <EquipmentManagement

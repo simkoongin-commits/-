@@ -1,23 +1,42 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { collection, deleteDoc, doc, onSnapshot, query, setDoc, where } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toPng } from "html-to-image";
+import { auth } from "@/lib/firebase";
 import {
   directions,
-  parseHeartFiveRecord,
+  koreanToday,
   recordStats,
-  type HeartFiveRecord,
   type ShotMark,
 } from "@/lib/heartFive";
 
-// Existing /clubs rules already cover these individual record documents.
-// The earlier nested collection needed a separate, undeployed rule and could not be read or saved.
-const recordsQuery = query(collection(db, "clubs"), where("kind", "==", "heartFive"));
-const today = () => {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+type RecordStats = ReturnType<typeof recordStats>;
+type RecordItem = {
+  id: string;
+  memberId: string;
+  memberName: string;
+  date: string;
+  place: string;
+  createdAt: string;
+  own: boolean;
+  unlocked: boolean;
+  completed: boolean;
+  shots: ShotMark[] | null;
+  stats: RecordStats | null;
 };
+
+async function recordRequest(path: string, options: RequestInit = {}) {
+  const token = await auth.currentUser?.getIdToken();
+  if (!token) throw new Error("로그인이 필요합니다.");
+  const response = await fetch(path, {
+    ...options,
+    headers: { Authorization: `Bearer ${token}`, ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers },
+    cache: "no-store",
+  });
+  const result = await response.json().catch(() => ({})) as { error?: string; [key: string]: unknown };
+  if (!response.ok) throw new Error(result.error || "요청을 처리하지 못했습니다.");
+  return result;
+}
 
 function Target({ onClick }: { onClick: () => void }) {
   return (
@@ -89,54 +108,80 @@ function ShotSummary({ shots }: { shots: readonly ShotMark[] }) {
   </div>;
 }
 
-export default function HeartFive({ ownerUid, memberId, memberName }: { ownerUid: string; memberId: string; memberName: string }) {
+export default function HeartFive({ places, isAdmin }: { places: string[]; isAdmin: boolean }) {
   const [tab, setTab] = useState<"records" | "statistics">("records");
-  const [records, setRecords] = useState<HeartFiveRecord[]>([]);
+  const [statisticsTab, setStatisticsTab] = useState<"members" | "dates">("members");
+  const [records, setRecords] = useState<RecordItem[]>([]);
+  const [points, setPoints] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
   const [adding, setAdding] = useState(false);
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(koreanToday);
+  const [place, setPlace] = useState(places[0] || "");
   const [shots, setShots] = useState<ShotMark[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [recordId, setRecordId] = useState("");
-  const [createdAt, setCreatedAt] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const saveVersion = useRef(0);
+  const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const captureRefs = useRef(new Map<string, HTMLDivElement>());
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [memberFilter, setMemberFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
 
-  useEffect(() => onSnapshot(recordsQuery, (snapshot) => {
-    setRecords(snapshot.docs.map((item) => parseHeartFiveRecord(item.id, item.data())).filter((item): item is HeartFiveRecord => item !== null));
-    setLoading(false);
-  }, () => {
-    setLoading(false);
-  }), []);
+  const refresh = useCallback(async () => {
+    try {
+      const result = await recordRequest("/api/heart-five") as { records?: RecordItem[]; points?: number };
+      setRecords(Array.isArray(result.records) ? result.records : []);
+      setPoints(typeof result.points === "number" ? result.points : 0);
+      setMessage("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "기록을 확인하지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const sorted = useMemo(() => [...records].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [records]);
-  const mine = sorted.filter((record) => record.ownerUid === ownerUid);
-  const memberOptions = useMemo(() => [...new Map(sorted.map((record) => [record.memberId, record.memberName])).entries()].sort((a, b) => a[1].localeCompare(b[1], "ko")), [sorted]);
-  const visible = sorted.filter((record) => record.shots.length % 5 === 0 && (!memberFilter || record.memberId === memberFilter) && (!dateFilter || record.date === dateFilter));
+  useEffect(() => {
+    const initial = window.setTimeout(() => void refresh(), 0);
+    const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => { window.clearTimeout(initial); document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onVisible); };
+  }, [refresh]);
 
-  const persist = async (nextShots: ShotMark[], nextDate: string, id = recordId, timestamp = createdAt) => {
-    if (!id || !nextDate) return;
+  const mine = useMemo(() => records.filter((record) => record.own).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [records]);
+  const publicRecords = records.filter((record) => record.completed);
+  const memberGroups = useMemo(() => {
+    const groups = new Map<string, { name: string; records: RecordItem[] }>();
+    records.filter((record) => record.completed).forEach((record) => {
+      const group = groups.get(record.memberId) || { name: record.memberName, records: [] };
+      group.records.push(record);
+      groups.set(record.memberId, group);
+    });
+    return [...groups.entries()].sort((a, b) => a[1].name.localeCompare(b[1].name, "ko"));
+  }, [records]);
+
+  const persist = (nextShots: ShotMark[], nextDate: string, nextPlace: string, id = recordId) => {
+    if (!id || !nextDate || !nextPlace || !nextShots.length) return;
     const version = ++saveVersion.current;
     setSaveStatus("saving");
-    try {
-      if (nextShots.length) await setDoc(doc(db, "clubs", id), { kind: "heartFive", ownerUid, memberId, memberName, date: nextDate, createdAt: timestamp, shots: nextShots });
-      else await deleteDoc(doc(db, "clubs", id));
-      if (version === saveVersion.current) setSaveStatus("saved");
-    } catch {
-      if (version === saveVersion.current) setSaveStatus("failed");
-    }
+    saveQueue.current = saveQueue.current.catch(() => undefined).then(() => recordRequest(`/api/heart-five/${encodeURIComponent(id)}`, {
+      method: "PUT", body: JSON.stringify({ date: nextDate, place: nextPlace, shots: nextShots }),
+    }));
+    void saveQueue.current.then(() => {
+      if (version === saveVersion.current) { setSaveStatus("saved"); void refresh(); }
+    }).catch((error) => {
+      if (version === saveVersion.current) { setSaveStatus("failed"); setMessage(error instanceof Error ? error.message : "자동저장에 실패했습니다."); }
+    });
   };
 
   const startNew = () => {
     saveVersion.current += 1;
     setRecordId(`heartFive-${crypto.randomUUID()}`);
-    setCreatedAt(new Date().toISOString());
-    setDate(today());
+    setDate(koreanToday());
+    setPlace(places[0] || "");
     setShots([]);
     setEditMode(false);
     setEditingIndex(null);
@@ -144,11 +189,12 @@ export default function HeartFive({ ownerUid, memberId, memberName }: { ownerUid
     setAdding(true);
   };
 
-  const openRecord = (record: HeartFiveRecord) => {
+  const openRecord = (record: RecordItem) => {
+    if (!record.own || !record.shots || record.date < koreanToday()) return;
     saveVersion.current += 1;
     setRecordId(record.id);
-    setCreatedAt(record.createdAt);
     setDate(record.date);
+    setPlace(record.place);
     setShots([...record.shots]);
     setEditMode(true);
     setEditingIndex(null);
@@ -158,46 +204,99 @@ export default function HeartFive({ ownerUid, memberId, memberName }: { ownerUid
   };
 
   const chooseMark = (mark: ShotMark) => {
+    if (!place) { setMessage("장소를 선택해주세요."); setPickerOpen(false); return; }
     const nextShots = [...shots];
     if (editingIndex === null) nextShots.push(mark);
     else nextShots[editingIndex] = mark;
     setShots(nextShots);
     setEditingIndex(null);
     setPickerOpen(false);
-    void persist(nextShots, date);
+    persist(nextShots, date, place);
+  };
+
+  const deleteRecord = async (record: RecordItem | { id: string }) => {
+    if (!window.confirm("이 습사 기록을 삭제할까요?")) return;
+    try {
+      await saveQueue.current.catch(() => undefined);
+      await recordRequest(`/api/heart-five/${encodeURIComponent(record.id)}`, { method: "DELETE" });
+      if (recordId === record.id) setAdding(false);
+      setExpandedId(null);
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "기록을 삭제하지 못했습니다.");
+    }
+  };
+
+  const unlockRecord = async (record: RecordItem) => {
+    try {
+      await recordRequest("/api/heart-five/unlock", { method: "POST", body: JSON.stringify({ recordId: record.id }) });
+      setExpandedId(record.id);
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "열람에 실패했습니다.");
+    }
+  };
+
+  const saveImage = async (record: RecordItem) => {
+    const node = captureRefs.current.get(record.id);
+    if (!node) return;
+    try {
+      const url = await toPng(node, { cacheBust: true, pixelRatio: 2, backgroundColor: "#ffffff" });
+      const link = document.createElement("a");
+      link.download = `심궁회-습사기록-${record.memberName}-${record.date}.png`;
+      link.href = url;
+      link.click();
+    } catch {
+      setMessage("이미지를 저장하지 못했습니다.");
+    }
+  };
+
+  const recordCard = (record: RecordItem) => {
+    const expanded = expandedId === record.id;
+    const editable = record.own && record.date >= koreanToday();
+    const deletable = editable || isAdmin;
+    return <article className="heart-card" key={record.id}>
+      <button type="button" className="heart-card-main" onClick={() => record.unlocked ? setExpandedId(expanded ? null : record.id) : void unlockRecord(record)} aria-expanded={record.unlocked && expanded}>
+        <strong>{record.memberName} · {record.date}</strong><span>{record.place}</span>
+        {record.stats ? <><span>최고 {record.stats.best}中</span><span>총시수 {record.stats.hits}중/{record.stats.rounds}순({record.stats.rounds * 5}시)</span>{record.stats.shotCount % 5 !== 0 && <span>입력 중 {record.stats.shotCount % 5}/5시</span>}</> : <span className="heart-locked">🔒 1P로 영구 열람</span>}
+        <b aria-hidden="true">{record.unlocked ? expanded ? "⌃" : "⌄" : "›"}</b>
+      </button>
+      {expanded && record.shots && <div className="heart-card-detail">
+        <div className="heart-capture" ref={(node) => { if (node) captureRefs.current.set(record.id, node); else captureRefs.current.delete(record.id); }}>
+          <div className="heart-capture-heading"><strong>心5시 心5중</strong><span>{record.memberName} · {record.date} · {record.place}</span></div>
+          <ShotTable shots={record.shots} /><ShotSummary shots={record.shots} />
+        </div>
+        <div className="heart-card-actions"><button type="button" onClick={() => void saveImage(record)}>이미지 저장</button>{editable && <button type="button" onClick={() => openRecord(record)}>수정</button>}{deletable && <button type="button" className="danger-button" onClick={() => void deleteRecord(record)}>삭제</button>}</div>
+      </div>}
+      {!record.unlocked && deletable && <div className="heart-card-actions"><button type="button" className="danger-button" onClick={() => void deleteRecord(record)}>삭제</button></div>}
+    </article>;
   };
 
   return <section className="content heart-five">
-    <div className="section-head"><div><h2>心5시 心5중</h2><p>다섯 발씩 기록하고, 한 순의 흐름을 살펴보세요.</p></div></div>
+    <div className="section-head"><div><h2>心5시 心5중</h2><p>다섯 발씩 기록하고, 한 순의 흐름을 살펴보세요.</p></div><div className="heart-header-actions"><span className="heart-points">보유 {points}P</span><button type="button" onClick={() => void refresh()}>새로고침</button></div></div>
     <div className="heart-tabs" role="tablist" aria-label="心5시 心5중 메뉴">
       <button type="button" role="tab" aria-selected={tab === "records"} className={tab === "records" ? "active" : ""} onClick={() => setTab("records")}>습사 기록</button>
       <button type="button" role="tab" aria-selected={tab === "statistics"} className={tab === "statistics" ? "active" : ""} onClick={() => setTab("statistics")}>습사 통계</button>
     </div>
+    {message && <p className="heart-error" role="alert">{message}</p>}
     {tab === "records" && <>
       <div className="heart-list-heading"><h3>내 습사 기록</h3><button type="button" className="primary" onClick={startNew}>추가</button></div>
       {adding && <div className="heart-editor">
-        <div className="heart-editor-head"><label>기록 날짜 <input type="date" value={date} onChange={(event) => { const nextDate = event.target.value; if (!nextDate) return; setDate(nextDate); void persist(shots, nextDate); }} /></label><button type="button" onClick={() => { setAdding(false); setPickerOpen(false); }}>닫기</button></div>
-        <ShotTable shots={shots} active onNext={() => { setEditingIndex(null); setPickerOpen(true); }} onEdit={editMode ? (index) => { setEditingIndex(index); setPickerOpen(true); } : undefined} />
+        <div className="heart-editor-head"><label>기록 날짜 <input type="date" min={koreanToday()} value={date} onChange={(event) => { const nextDate = event.target.value; if (!nextDate || nextDate < koreanToday()) return; setDate(nextDate); persist(shots, nextDate, place); }} /></label><label>장소<select value={place} onChange={(event) => { setPlace(event.target.value); persist(shots, date, event.target.value); }}>{place && !places.includes(place) && <option value={place}>{place} (기존 장소)</option>}{places.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><button type="button" onClick={() => { setAdding(false); setPickerOpen(false); }}>닫기</button></div>
+        <ShotTable shots={shots} active={date >= koreanToday()} onNext={() => { setEditingIndex(null); setPickerOpen(true); }} onEdit={editMode && date >= koreanToday() ? (index) => { setEditingIndex(index); setPickerOpen(true); } : undefined} />
         <ShotSummary shots={shots} />
-        <div className="heart-actions"><button type="button" onClick={() => setEditMode(!editMode)}>{editMode ? "수정 완료" : "수정"}</button>{editMode && <button type="button" disabled={!shots.length} onClick={() => { const nextShots = shots.slice(0, -1); setShots(nextShots); void persist(nextShots, date); }}>마지막 발 삭제</button>}<span className="heart-save-status" role="status">{saveStatus === "saving" ? "자동저장 중…" : saveStatus === "failed" ? "자동저장 실패" : saveStatus === "saved" ? "자동저장됨" : ""}</span>{saveStatus === "failed" && <button type="button" onClick={() => void persist(shots, date)}>다시 시도</button>}</div>
+        <div className="heart-actions"><button type="button" disabled={date < koreanToday()} onClick={() => setEditMode(!editMode)}>{editMode ? "수정 완료" : "수정"}</button>{editMode && <button type="button" disabled={!shots.length || date < koreanToday()} onClick={() => { if (shots.length === 1) { void deleteRecord({ id: recordId }); return; } const nextShots = shots.slice(0, -1); setShots(nextShots); persist(nextShots, date, place); }}>마지막 발 삭제</button>}<span className="heart-save-status" role="status">{saveStatus === "saving" ? "자동저장 중…" : saveStatus === "failed" ? "자동저장 실패" : saveStatus === "saved" ? "자동저장됨" : ""}</span>{saveStatus === "failed" && <button type="button" onClick={() => persist(shots, date, place)}>다시 시도</button>}</div>
         {editMode && <small className="heart-hint">수정할 칸을 누른 뒤 방향 또는 과녁을 다시 선택하세요.</small>}
       </div>}
-      {loading ? <p className="heart-empty">기록을 불러오는 중이에요…</p> : mine.length ? <div className="heart-card-list">{mine.map((record) => {
-        const stats = recordStats(record.shots);
-        return <article className="heart-card" key={record.id}><button type="button" className="heart-card-main" onClick={() => setExpandedId(expandedId === record.id ? null : record.id)} aria-expanded={expandedId === record.id}>
-          <strong>{record.date}</strong><span>최고 {stats.best}中</span><span>총시수 {stats.hits}중/{stats.rounds}순({stats.rounds * 5}시)</span>{stats.shotCount % 5 !== 0 && <span>입력 중 {stats.shotCount % 5}/5시</span>}<b aria-hidden="true">{expandedId === record.id ? "⌃" : "⌄"}</b>
-        </button>{expandedId === record.id && <div className="heart-card-detail"><ShotTable shots={record.shots} /><ShotSummary shots={record.shots} /><button type="button" className="heart-edit-record" onClick={() => openRecord(record)}>수정</button></div>}</article>;
-      })}</div> : <p className="heart-empty">아직 저장한 습사 기록이 없어요.</p>}
+      {loading ? <p className="heart-empty">기록을 불러오는 중이에요…</p> : mine.length ? <div className="heart-card-list">{mine.map(recordCard)}</div> : <p className="heart-empty">아직 저장한 습사 기록이 없어요.</p>}
     </>}
     {tab === "statistics" && <>
-      <div className="heart-list-heading"><h3>전체 회원 기록</h3><span>{visible.length}개 기록</span></div>
-      <div className="heart-filters"><label>회원<select value={memberFilter} onChange={(event) => setMemberFilter(event.target.value)}><option value="">전체 회원</option>{memberOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label><label>날짜<input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} /></label><button type="button" onClick={() => { setMemberFilter(""); setDateFilter(""); }}>초기화</button></div>
-      {loading ? <p className="heart-empty">기록을 불러오는 중이에요…</p> : visible.length ? <div className="heart-card-list">{visible.map((record) => {
-        const stats = recordStats(record.shots);
-        return <article className="heart-card" key={record.id}><button type="button" className="heart-card-main" onClick={() => setExpandedId(expandedId === record.id ? null : record.id)} aria-expanded={expandedId === record.id}>
-          <strong>{record.memberName} · {record.date}</strong><span>최고 {stats.best}中</span><span>총시수 {stats.hits}중/{stats.rounds}순({stats.rounds * 5}시)</span>{stats.shotCount % 5 !== 0 && <span>입력 중 {stats.shotCount % 5}/5시</span>}<b aria-hidden="true">{expandedId === record.id ? "⌃" : "⌄"}</b>
-        </button>{expandedId === record.id && <div className="heart-card-detail"><ShotTable shots={record.shots} /><ShotSummary shots={record.shots} /></div>}</article>;
-      })}</div> : <p className="heart-empty">조건에 맞는 기록이 없어요.</p>}
+      <div className="heart-tabs heart-stat-tabs" role="tablist" aria-label="습사 통계 보기">
+        <button type="button" role="tab" aria-selected={statisticsTab === "members"} className={statisticsTab === "members" ? "active" : ""} onClick={() => setStatisticsTab("members")}>회원별</button>
+        <button type="button" role="tab" aria-selected={statisticsTab === "dates"} className={statisticsTab === "dates" ? "active" : ""} onClick={() => setStatisticsTab("dates")}>날짜별</button>
+      </div>
+      {statisticsTab === "members" && (memberGroups.length ? <div className="heart-member-list">{memberGroups.map(([id, group]) => <section className="heart-member-group" key={id}><button type="button" onClick={() => setExpandedMemberId(expandedMemberId === id ? null : id)} aria-expanded={expandedMemberId === id}><strong>{group.name}</strong><span>{group.records.length}개 기록</span><b>{expandedMemberId === id ? "⌃" : "⌄"}</b></button>{expandedMemberId === id && <div className="heart-card-list">{group.records.map(recordCard)}</div>}</section>)}</div> : <p className="heart-empty">아직 완성된 습사 기록이 없어요.</p>)}
+      {statisticsTab === "dates" && (publicRecords.length ? <div className="heart-card-list">{publicRecords.map(recordCard)}</div> : <p className="heart-empty">아직 완성된 습사 기록이 없어요.</p>)}
     </>}
     {pickerOpen && <ShotPicker onClose={() => { setPickerOpen(false); setEditingIndex(null); }} onPick={chooseMark} />}
   </section>;
