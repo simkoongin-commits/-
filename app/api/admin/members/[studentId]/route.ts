@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticatedMember } from "../../../../lib/firebaseAdmin";
+import { normalizeTermSnapshots, normalizeWithdrawals, termOrder, validTerm } from "@/lib/membershipHistory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +29,11 @@ export async function DELETE(
       return NextResponse.json({ error: "관리자만 가입 정보를 초기화할 수 있습니다." }, { status: 403 });
     }
     const target = members.find((member) => member.id === studentId);
+    const body = await request.json().catch(() => ({})) as { mode?: string; withdrawnTerm?: string };
+    const mode = body.mode === "withdraw" ? "withdraw" : "delete";
+    if (mode === "withdraw" && (!target || !target.name || !target.joinTerm || !body.withdrawnTerm || !validTerm(body.withdrawnTerm) || !validTerm(target.joinTerm) || termOrder(body.withdrawnTerm) < termOrder(target.joinTerm))) {
+      return NextResponse.json({ error: "탈퇴 학기를 확인해주세요." }, { status: 400 });
+    }
     if (orphanOnly && target) {
       return NextResponse.json({ error: "현재 회원 목록에 있는 계정입니다. 회원 목록에서 삭제해주세요." }, { status: 409 });
     }
@@ -48,8 +54,13 @@ export async function DELETE(
     if (!orphanOnly) {
       const latest = await clubRef.get();
       const data = latest.data() || {};
-      const practiceStats = { ...((data.practiceStats || {}) as Record<string, unknown>) };
-      delete practiceStats[studentId];
+      const historyId = `withdrawn-${crypto.randomUUID()}`;
+      const termSnapshots = normalizeTermSnapshots(data.termSnapshots).map((snapshot) => ({
+        ...snapshot,
+        members: mode === "delete" ? snapshot.members.filter((member) => member.id !== studentId) : snapshot.members.map((member) => member.id === studentId ? { ...member, id: historyId } : member),
+      }));
+      const withdrawals = normalizeWithdrawals(data.withdrawals);
+      if (mode === "withdraw" && target?.name && target.joinTerm) withdrawals.push({ name: target.name, joinTerm: target.joinTerm, withdrawnTerm: body.withdrawnTerm! });
       const practices = Array.isArray(data.practices) ? data.practices.map((practice: {
         applicants?: string[];
         applicantIds?: string[];
@@ -62,8 +73,9 @@ export async function DELETE(
         attendeeIds: (practice.attendeeIds || []).filter((id) => id !== studentId),
       })) : [];
       await clubRef.update({
-        members: members.filter((member) => member.id !== studentId),
-        practiceStats,
+        members: ((Array.isArray(data.members) ? data.members : members) as typeof members).filter((member) => member.id !== studentId),
+        termSnapshots,
+        withdrawals,
         practices,
       });
     }

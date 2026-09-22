@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   assignBowIndexes,
   bowGroupKey,
@@ -81,6 +81,7 @@ export default function EquipmentManagement({
   onReturnRental,
   onRestoreItem,
   onDeleteEquipment,
+  onDeleteEquipmentMany,
   onDeleteRental,
 }: {
   equipment: Equipment[];
@@ -94,6 +95,7 @@ export default function EquipmentManagement({
   onReturnRental: (rentalId: string) => Promise<void>;
   onRestoreItem: (itemId: string, action: "recover" | "repair") => Promise<void>;
   onDeleteEquipment: (itemId: string) => Promise<void>;
+  onDeleteEquipmentMany: (itemIds: string[]) => Promise<void>;
   onDeleteRental: (rentalId: string) => Promise<void>;
 }) {
   const [tab, setTab] = useState<"inventory" | "rentals">("inventory");
@@ -101,6 +103,9 @@ export default function EquipmentManagement({
   const [adding, setAdding] = useState<"bow" | "arrow" | null>(null);
   const [arrowPreset, setArrowPreset] = useState<{ lengthWeight?: string; index?: string }>({});
   const [selectedItem, setSelectedItem] = useState<Equipment | null>(null);
+  const [arrowSelection, setArrowSelection] = useState<{ group: string; ids: string[] } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suppressArrowClickUntil = useRef(0);
   const [equipmentNote, setEquipmentNote] = useState("");
   const [loanDate, setLoanDate] = useState(todayValue);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -110,6 +115,15 @@ export default function EquipmentManagement({
   const [busy, setBusy] = useState(false);
   const [openStat, setOpenStat] = useState<EquipmentStatKey | null>(null);
   const canManageEquipment = session.role === "관리자" || session.team === "장비팀";
+  const clearLongPress = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); longPressTimer.current = null; };
+  const selectArrow = (item: ArrowEquipment) => {
+    const group = `${item.lengthWeight}\u0000${item.index}`;
+    setArrowSelection((current) => {
+      if (current && current.group !== group) { notify("같은 위계의 화살만 선택할 수 있어요."); return current; }
+      const ids = current?.ids.includes(item.id) ? current.ids.filter((id) => id !== item.id) : [...(current?.ids || []), item.id];
+      return ids.length ? { group, ids } : null;
+    });
+  };
 
   const notify = (text: string) => {
     setMessage(text);
@@ -240,7 +254,9 @@ export default function EquipmentManagement({
           <div className="equipment-count"><span>전체 활</span><strong>{bows.length}개</strong></div>
           {bowGroups.size ? <div className="bow-tree">{[...bowGroups].map(([group, items]) => { const sample = items[0]; return items.length === 1 ? <EquipmentCard key={group} item={sample} compact onClick={() => openEquipment(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {items.length}개</small></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>; })}</div> : <Empty text="등록된 활이 없어요." />}
         </div> : <div className="arrow-tree">
-          {arrowGroups.size ? [...arrowGroups].map(([group, indexes]) => <details key={group}><summary><span>{group}</span><span className="arrow-summary-actions"><small>{[...indexes.values()].flat().length}개</small>{canManageEquipment && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group }); setAdding("arrow"); }}>+</button>}</span></summary><div>{[...indexes].map(([index, items]) => <details key={index}><summary><span>{index}</span><span className="arrow-summary-actions"><small>{items.length}개</small>{canManageEquipment && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group, index }); setAdding("arrow"); }}>+</button>}</span></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>)}</div></details>) : <Empty text="등록된 화살이 없어요." />}
+          {canManageEquipment && <p className="arrow-bulk-hint">화살을 길게 누르면 같은 분류의 화살을 여러 개 선택할 수 있어요.</p>}
+          {arrowSelection && <div className="arrow-bulk-toolbar"><b>{arrowSelection.ids.length}개 선택</b><button onClick={() => setArrowSelection(null)}>선택 취소</button><button className="danger" disabled={busy} onClick={() => { if (!window.confirm(`선택한 화살 ${arrowSelection.ids.length}개를 모두 삭제할까요? 복구할 수 없어요.`)) return; void run(async () => { await onDeleteEquipmentMany(arrowSelection.ids); setArrowSelection(null); }, "선택한 화살을 삭제했어요"); }}>선택 삭제</button></div>}
+          {arrowGroups.size ? [...arrowGroups].map(([group, indexes]) => <details key={group}><summary><span>{group}</span><span className="arrow-summary-actions"><small>{[...indexes.values()].flat().length}개</small>{canManageEquipment && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group }); setAdding("arrow"); }}>+</button>}</span></summary><div>{[...indexes].map(([index, items]) => <details key={index}><summary><span>{index}</span><span className="arrow-summary-actions"><small>{items.length}개</small>{canManageEquipment && <button onClick={(event) => { event.preventDefault(); setArrowPreset({ lengthWeight: group, index }); setAdding("arrow"); }}>+</button>}</span></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} selected={Boolean(arrowSelection?.ids.includes(item.id))} onPointerDown={() => { if (!canManageEquipment || arrowSelection) return; clearLongPress(); longPressTimer.current = setTimeout(() => { suppressArrowClickUntil.current = Date.now() + 700; selectArrow(item); }, 550); }} onPointerUp={() => clearLongPress()} onPointerLeave={() => clearLongPress()} onContextMenu={(event) => { if (!canManageEquipment) return; event.preventDefault(); clearLongPress(); if (Date.now() < suppressArrowClickUntil.current) return; suppressArrowClickUntil.current = Date.now() + 700; selectArrow(item); }} onClick={() => { if (Date.now() < suppressArrowClickUntil.current) return; if (arrowSelection) selectArrow(item); else openEquipment(item); }} />)}</div></details>)}</div></details>) : <Empty text="등록된 화살이 없어요." />}
         </div>}
       </> : <>
         <div className="rental-form-card">
@@ -302,9 +318,9 @@ function RentalNoteSummary({ note, equipment }: { note: RentalNote; equipment: E
   return <span className="rental-note-summary"><b>{noteLabel[note.type]}</b>{note.type === "custom" ? <small>{note.text}</small> : groupedEquipmentLabels(selected).map((label) => <small key={label}>{label}</small>)}{note.type === "damaged" && selected.map((item) => note.details?.[item.id] ? <small key={`${note.id}-${item.id}`}>{equipmentName(item)}: {note.details[item.id]}</small> : null)}</span>;
 }
 
-function EquipmentCard({ item, compact = false, onClick }: { item: Equipment; compact?: boolean; onClick: () => void }) {
+function EquipmentCard({ item, compact = false, selected = false, onClick, onPointerDown, onPointerUp, onPointerLeave, onContextMenu }: { item: Equipment; compact?: boolean; selected?: boolean; onClick: () => void; onPointerDown?: () => void; onPointerUp?: () => void; onPointerLeave?: () => void; onContextMenu?: (event: React.MouseEvent) => void }) {
   const reason = equipmentUnavailableReason(item);
-  return <button className={`equipment-card ${compact ? "compact-bow" : ""} ${reason ? "unavailable" : ""}`} onClick={onClick}><span>{item.kind === "bow" ? "활" : "화살"}</span><b>{equipmentName(item)}</b><small>{reason || "대여 가능"}{item.holderName ? ` · ${item.holderName}` : ""}</small></button>;
+  return <button className={`equipment-card ${compact ? "compact-bow" : ""} ${reason ? "unavailable" : ""} ${selected ? "bulk-selected" : ""}`} onClick={onClick} onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} onPointerLeave={onPointerLeave} onContextMenu={onContextMenu}>{selected && <span className="bulk-check">✓</span>}<span>{item.kind === "bow" ? "활" : "화살"}</span><b>{equipmentName(item)}</b><small>{reason || "대여 가능"}{item.holderName ? ` · ${item.holderName}` : ""}</small></button>;
 }
 
 function NoteEditor({ notes, setNotes, availableIds, equipment, onAdd }: { notes: RentalNote[]; setNotes: (next: RentalNote[]) => void; availableIds: string[]; equipment: Equipment[]; onAdd: (type: RentalNoteType) => void }) {
