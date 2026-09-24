@@ -1,11 +1,12 @@
 "use client";
 
 import type { MouseEvent, PointerEvent } from "react";
-import { equipmentName, equipmentUnavailableReason, type Equipment } from "@/lib/equipment";
+import { equipmentName, equipmentNameWithoutBowIndex, equipmentUnavailableReason, type Equipment } from "@/lib/equipment";
 
-export default function EquipmentCard({ item, compact = false, selected = false, onClick, onPointerDown, onPointerUp, onPointerLeave, onContextMenu }: {
+export default function EquipmentCard({ item, compact = false, showBowIndex = true, selected = false, onClick, onPointerDown, onPointerUp, onPointerLeave, onContextMenu }: {
   item: Equipment;
   compact?: boolean;
+  showBowIndex?: boolean;
   selected?: boolean;
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   onPointerDown?: (event: PointerEvent<HTMLButtonElement>) => void;
@@ -27,7 +28,7 @@ export default function EquipmentCard({ item, compact = false, selected = false,
     >
       {selected && <span className="bulk-check">✓</span>}
       <span>{item.kind === "bow" ? "활" : "화살"}</span>
-      <b>{equipmentName(item)}</b>
+      <b>{showBowIndex ? equipmentName(item) : equipmentNameWithoutBowIndex(item)}</b>
       <small>{reason || "대여 가능"}{item.holderName ? ` · ${item.holderName}` : ""}</small>
     </button>
   );

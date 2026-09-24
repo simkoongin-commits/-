@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { groupArrows, type ArrowEquipment } from "@/lib/equipment";
+import { arrowConditionLabels, countsTowardInventory, formatArrowCount, groupArrows, type ArrowEquipment } from "@/lib/equipment";
 import EquipmentCard from "@/app/components/EquipmentCard";
 
 type ArrowPreset = { lengthWeight?: string; index?: string };
@@ -59,10 +59,16 @@ export default function ArrowInventory({ arrows, canManage, onAdd, onOpen, onDel
       <span>화살을 길게 누르거나 선택 시작을 눌러 여러 분류에서 선택하세요.</span>
       {selectionMode ? <><b>{selectedIds.length}개 선택</b><button onClick={closeSelection}>취소</button><button className="danger" disabled={deleting || selectedIds.length === 0} onClick={() => void deleteSelected()}>삭제</button></> : <button onClick={() => setSelectionMode(true)}>선택 시작</button>}
     </div>}
-    {groups.size ? [...groups].map(([lengthWeight, indexes]) => <details key={lengthWeight}>
-      <summary><span>{lengthWeight}</span><span className="arrow-summary-actions"><small>{[...indexes.values()].flat().length}개</small>{canManage && <button onClick={(event) => { event.preventDefault(); onAdd({ lengthWeight }); }}>+</button>}</span></summary>
+    {groups.size ? [...groups].map(([lengthWeight, indexes]) => {
+      const groupItems = [...indexes.values()].flat();
+      const conditionCounts = [
+        groupItems.filter((item) => item.status === "lost").length ? `분실 ${groupItems.filter((item) => item.status === "lost").length}개` : "",
+        groupItems.filter((item) => item.status === "damaged").length ? `손상 ${groupItems.filter((item) => item.status === "damaged").length}개` : "",
+      ].filter(Boolean);
+      return <details key={lengthWeight}>
+      <summary><span>{lengthWeight}</span><span className="arrow-summary-actions"><span className="arrow-count-labels"><small>{formatArrowCount(groupItems.filter(countsTowardInventory).length)}</small>{conditionCounts.map((label) => <small className="condition" key={label}>{label}</small>)}</span>{canManage && <button onClick={(event) => { event.preventDefault(); onAdd({ lengthWeight }); }}>+</button>}</span></summary>
       <div>{[...indexes].map(([index, items]) => <details key={index}>
-        <summary><span>{index}</span><span className="arrow-summary-actions"><small>{items.length}개</small>{canManage && <button onClick={(event) => { event.preventDefault(); onAdd({ lengthWeight, index }); }}>+</button>}</span></summary>
+        <summary><span>{index}</span><span className="arrow-summary-actions"><span className="arrow-count-labels"><small>{formatArrowCount(items.filter(countsTowardInventory).length)}</small>{arrowConditionLabels(items).map((label) => <small className="condition" key={label}>{label}</small>)}</span>{canManage && <button onClick={(event) => { event.preventDefault(); onAdd({ lengthWeight, index }); }}>+</button>}</span></summary>
         <div className="equipment-grid">{items.map((item) => <EquipmentCard
           key={item.id}
           item={item}
@@ -98,6 +104,6 @@ export default function ArrowInventory({ arrows, canManage, onAdd, onOpen, onDel
           }}
         />)}</div>
       </details>)}</div>
-    </details>) : <p className="equipment-empty">등록된 화살이 없어요.</p>}
+    </details>}) : <p className="equipment-empty">등록된 화살이 없어요.</p>}
   </div>;
 }
