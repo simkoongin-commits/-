@@ -13,7 +13,6 @@ import {
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -46,42 +45,23 @@ import {
 } from "@/lib/practiceStats";
 import { memberSnapshot, nextTerm, normalizeTermSnapshots, normalizeWithdrawals, termOrder, type TermSnapshot, type WithdrawalRecord, validTerm } from "@/lib/membershipHistory";
 import { memberDisplayLabel } from "@/lib/memberDisplay";
+import {
+  gradeFor,
+  leaderPositionForTeam,
+  memberTeam,
+  normalizeMemberTeam,
+  teamForPosition,
+  teamNames,
+  validMemberTerm,
+  type ClubMember,
+  type TeamName,
+} from "@/lib/members";
 
 const EquipmentManagement = dynamic(() => import("@/app/components/EquipmentManagement"));
 const Statistics = dynamic(() => import("@/app/components/Statistics"));
 const HeartFive = dynamic(() => import("@/app/components/HeartFive"));
 
-type TeamName = "대표팀" | "교육팀" | "장비팀" | "홍보팀" | "지원팀";
-const teamNames: TeamName[] = ["대표팀", "교육팀", "장비팀", "홍보팀", "지원팀"];
-type Member = {
-  id: string;
-  name: string;
-  joinTerm: string;
-  grade: "예비신사" | "신사" | "구사";
-  role: "관리자" | "회원";
-  position?: "대표" | "부대표" | "교육팀장" | "장비팀장" | "홍보팀장" | "";
-  team?: TeamName | "";
-};
-const teamForPosition = (position?: Member["position"]): TeamName | "" => {
-  if (position === "대표" || position === "부대표") return "대표팀";
-  if (position === "교육팀장") return "교육팀";
-  if (position === "장비팀장") return "장비팀";
-  if (position === "홍보팀장") return "홍보팀";
-  return "";
-};
-const memberTeam = (member: Member): TeamName | "" =>
-  teamForPosition(member.position) || member.team || "";
-const normalizeMemberTeam = (member: Member): TeamName | "" => {
-  const positionTeam = teamForPosition(member.position);
-  if (positionTeam) return positionTeam;
-  return member.team && teamNames.includes(member.team) ? member.team : "";
-};
-const leaderPositionForTeam: Partial<Record<TeamName, Member["position"]>> = {
-  대표팀: "대표",
-  교육팀: "교육팀장",
-  장비팀: "장비팀장",
-  홍보팀: "홍보팀장",
-};
+type Member = ClubMember;
 type Practice = {
   id: number;
   type: "regular" | "general" | "competition";
@@ -305,15 +285,6 @@ const defaultPublicPosts: PublicPost[] = [
   },
 ];
 
-const termIndex = (term: string) => {
-  const safeTerm = typeof term === "string" && /^\d{2}-[12]$/.test(term) ? term : "00-1";
-  const [year, semester] = safeTerm.split("-").map(Number);
-  return year * 2 + semester - 1;
-};
-const gradeFor = (joinTerm: string, currentTerm: string): Member["grade"] => {
-  const gap = termIndex(currentTerm) - termIndex(joinTerm);
-  return gap <= 0 ? "예비신사" : gap === 1 ? "신사" : "구사";
-};
 const seedPractices: Practice[] = [
   {
     id: 1,
@@ -635,7 +606,7 @@ function PublicPortal({
   onDiscard?: (question: PublicQuestion) => void;
   onSaveScenes?: (scenes: PromoScene[]) => void;
 }) {
-  const [tab, setTab] = useState<PromoTab>(initialTab);
+  const tab = initialTab || "home";
   const [questionSent, setQuestionSent] = useState(false);
   const [questionError, setQuestionError] = useState("");
   const [questionSubmitting, setQuestionSubmitting] = useState(false);
@@ -667,9 +638,7 @@ function PublicPortal({
   );
   const shownScenes = scenes?.length ? scenes : defaultPromoScenes;
   const shownPosts = posts?.length ? posts : defaultPublicPosts;
-  useEffect(() => setTab(initialTab), [initialTab]);
   const navigateTab = (nextTab: PromoTab) => {
-    setTab(nextTab);
     onTabChange?.(nextTab);
   };
   const formatPostBody = (command: "bold" | "insertUnorderedList" | "foreColor", value?: string) => {
@@ -1678,7 +1647,7 @@ export default function Home() {
       registrationInProgress.current = false;
     }
   };
-  const today = new Date();
+  const [today] = useState(() => new Date());
   const visible = useMemo(
     () =>
       practices
@@ -1697,7 +1666,7 @@ export default function Home() {
         .sort(
           (a, b) => (sort === "asc" ? 1 : -1) * a.date.localeCompare(b.date),
         ),
-    [practices, filter, sort],
+    [practices, filter, sort, today],
   );
   const nextPractice = useMemo(
     () =>
@@ -1706,7 +1675,7 @@ export default function Home() {
         .sort((a, b) =>
           `${a.date}T${a.start}`.localeCompare(`${b.date}T${b.start}`),
         )[0],
-    [practices],
+    [practices, today],
   );
   const submitPublicQuestion = async (
     item: Omit<PublicQuestion, "id" | "status" | "createdAt">,
@@ -2011,7 +1980,7 @@ export default function Home() {
           const itemIds = note.itemIds.filter((id) => id !== itemId);
           if (itemIds.length === 0) return [];
           const details = note.details ? Object.fromEntries(Object.entries(note.details).filter(([id]) => id !== itemId)) : undefined;
-          const { details: _details, ...withoutDetails } = note;
+          const withoutDetails = { ...note, details: undefined };
           return [{ ...withoutDetails, itemIds, ...(details && Object.keys(details).length ? { details } : {}) }];
         }),
       }));
@@ -2296,7 +2265,7 @@ export default function Home() {
         </button>
       </div>
       <div className="member-toolbar">
-        <a className="brand" href="#">
+        <div className="brand">
           <span className="brandmark">
             <img src="/hanyang-mark.png" alt="한양대학교 마크" />
           </span>
@@ -2304,7 +2273,7 @@ export default function Home() {
             <b>심궁회</b>
             <small>습사 일정 관리</small>
           </span>
-        </a>
+        </div>
         <div className="room-status">
           <button
             className={roomStatus.isOpen ? "room-toggle on" : "room-toggle"}
@@ -2973,7 +2942,7 @@ export default function Home() {
           }}
         />
       )}
-      {deletionTarget && <div className="member-delete-backdrop" onClick={() => !deletionBusy && setDeletionTarget(null)}><div className="member-delete-dialog" role="dialog" aria-modal="true" aria-label="계정 처리" onClick={(event) => event.stopPropagation()}><h3>{deletionTarget.name} 계정 처리</h3><p>계정 삭제는 탈퇴 통계에 남기지 않아요. 심궁회 탈퇴는 선택한 학기에 탈퇴 기록을 남깁니다.</p><label>탈퇴 학기<select value={deletionTerm} onChange={(event) => setDeletionTerm(event.target.value)}>{Array.from({ length: Math.max(1, termOrder(currentTerm) - termOrder(deletionTarget.joinTerm) + 1) }, (_, index) => { let term = deletionTarget.joinTerm; for (let step = 0; step < index; step += 1) term = nextTerm(term); return term; }).map((term) => <option key={term} value={term}>{term}</option>)}</select></label><div><button disabled={deletionBusy} onClick={() => void confirmDeletion("delete")}>계정 삭제</button><button disabled={deletionBusy} onClick={() => void confirmDeletion("withdraw")}>심궁회 탈퇴</button><button disabled={deletionBusy} onClick={() => setDeletionTarget(null)}>취소</button></div></div></div>}
+      {deletionTarget && <dialog open className="member-delete-backdrop"><div className="member-delete-dialog" role="document"><h3>{deletionTarget.name} 계정 처리</h3><p>계정 삭제는 탈퇴 통계에 남기지 않아요. 심궁회 탈퇴는 선택한 학기에 탈퇴 기록을 남깁니다.</p><label>탈퇴 학기<select value={deletionTerm} onChange={(event) => setDeletionTerm(event.target.value)}>{Array.from({ length: Math.max(1, termOrder(currentTerm) - termOrder(deletionTarget.joinTerm) + 1) }, (_, index) => { let term = deletionTarget.joinTerm; for (let step = 0; step < index; step += 1) term = nextTerm(term); return term; }).map((term) => <option key={term} value={term}>{term}</option>)}</select></label><div><button disabled={deletionBusy} onClick={() => void confirmDeletion("delete")}>계정 삭제</button><button disabled={deletionBusy} onClick={() => void confirmDeletion("withdraw")}>심궁회 탈퇴</button><button disabled={deletionBusy} onClick={() => setDeletionTarget(null)}>취소</button></div></div></dialog>}
       {toast && <div className="toast">✓ {toast}</div>}
     </main>
   );
@@ -3001,10 +2970,7 @@ function ProfilePanel({
   const [tab, setTab] = useState<"info" | "admin">("info");
   const [draft, setDraft] = useState(member);
   return (
-    <div
-      className="modal-back"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
+    <dialog open className="modal-back">
       <section className="modal profile-sheet">
         <div className="modal-head">
           <div>
@@ -3167,7 +3133,7 @@ function ProfilePanel({
           </button>
         )}
       </section>
-    </div>
+    </dialog>
   );
 }
 
@@ -3187,7 +3153,8 @@ function Participants({
   onClose: () => void;
 }) {
   const canCheck = session.role === "관리자" || session.grade === "신사" || session.grade === "구사";
-  const started = Date.now() >= new Date(`${practice.date}T${practice.start}`).getTime();
+  const [openedAt] = useState(Date.now);
+  const started = openedAt >= new Date(`${practice.date}T${practice.start}`).getTime();
   const attendeeIds = new Set(practice.attendeeIds || []);
   const rows = practice.applicants.map((name, index) => {
     const member = members.find((item) => item.name === name);
@@ -3197,10 +3164,7 @@ function Participants({
     return { name, index, member, attended, pending };
   }).sort((a, b) => Number(a.attended) - Number(b.attended) || a.index - b.index);
   return (
-    <div
-      className="modal-back"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
+    <dialog open className="modal-back">
       <section className="modal participant-sheet">
         <div className="modal-head">
           <div>
@@ -3234,7 +3198,7 @@ function Participants({
           확인
         </button>
       </section>
-    </div>
+    </dialog>
   );
 }
 
@@ -3900,7 +3864,7 @@ function MemberForm({
   onClose: () => void;
   onSave: (member: Member) => boolean | void;
 }) {
-  const initialJoinTerm = typeof initial?.joinTerm === "string" && /^\d{2}-[12]$/.test(initial.joinTerm)
+  const initialJoinTerm = validMemberTerm(initial?.joinTerm)
     ? initial.joinTerm
     : currentTerm;
   const [joinTerm, setJoinTerm] = useState(initialJoinTerm);
@@ -3908,15 +3872,12 @@ function MemberForm({
   const [studentId, setStudentId] = useState(typeof initial?.id === "string" ? initial.id : "");
   const [role, setRole] = useState<Member["role"]>(initial?.role === "관리자" ? "관리자" : "회원");
   const [position, setPosition] = useState<Member["position"]>(initial?.position || "");
-  const [team, setTeam] = useState<Member["team"]>(normalizeMemberTeam(initial || { id: "", name: "", joinTerm: currentTerm, grade: "예비신사", role: "회원" }));
-  const grade = /^\d{2}-[12]$/.test(joinTerm)
+  const [team, setTeam] = useState<Member["team"]>(initial ? normalizeMemberTeam(initial) : "");
+  const grade = validMemberTerm(joinTerm)
     ? gradeFor(joinTerm, currentTerm)
     : "예비신사";
   return (
-    <div
-      className="modal-back"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
+    <dialog open className="modal-back">
       <form
         className="modal member-form"
         onSubmit={(e) => {
@@ -4026,7 +3987,7 @@ function MemberForm({
           </button>
         </div>
       </form>
-    </div>
+    </dialog>
   );
 }
 
@@ -4045,13 +4006,13 @@ function TimeSelect({
   onChange?: (value: string) => void;
 }) {
   return onChange ? (
-    <select value={value} onChange={(e) => onChange(e.target.value)}>
+    <select name={name} id={name} value={value} onChange={(e) => onChange(e.target.value)}>
       {halfHourTimes.map((time) => (
         <option key={time}>{time}</option>
       ))}
     </select>
   ) : (
-    <select name={name} defaultValue={value}>
+    <select name={name} id={name} defaultValue={value}>
       {halfHourTimes.map((time) => (
         <option key={time}>{time}</option>
       ))}
@@ -4140,10 +4101,7 @@ function PracticeForm({
     );
   };
   return (
-    <div
-      className="modal-back"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
-    >
+    <dialog open className="modal-back">
       <form className="modal practice-form" onSubmit={submit}>
         <div className="modal-head">
           <div>
@@ -4154,8 +4112,8 @@ function PracticeForm({
             ×
           </button>
         </div>
-        <label>
-          습사 종류
+        <fieldset className="segmented-field">
+          <legend>습사 종류</legend>
           <div className="type-select">
             <button
               type="button"
@@ -4179,9 +4137,9 @@ function PracticeForm({
               대회
             </button>
           </div>
-        </label>
-        <label>
-          참여 구분
+        </fieldset>
+        <fieldset className="segmented-field">
+          <legend>참여 구분</legend>
           <div className="attendance-select">
             <button
               type="button"
@@ -4198,7 +4156,7 @@ function PracticeForm({
               자유 참여
             </button>
           </div>
-        </label>
+        </fieldset>
         {type === "regular" && (
           <div className="form-row">
             <label>
@@ -4222,11 +4180,11 @@ function PracticeForm({
               defaultValue={initial?.date || todayDate}
             />
           </label>
-          <label>
+          <label htmlFor="start">
             시작
             <TimeSelect name="start" value={initial?.start || "14:00"} />
           </label>
-          <label>
+          <label htmlFor="end">
             종료
             <TimeSelect name="end" value={initial?.end || "16:00"} />
           </label>
@@ -4349,6 +4307,6 @@ function PracticeForm({
           </button>
         </div>
       </form>
-    </div>
+    </dialog>
   );
 }

@@ -1463,6 +1463,15 @@ main {
   color: #98a19d;
   font-size: 12px;
 }
+dialog.modal-back,
+dialog.member-delete-backdrop {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border: 0;
+}
+.segmented-field { min-width: 0; margin: 0; padding: 0; border: 0; }
+.segmented-field legend { margin-bottom: 8px; font-weight: 700; }
 .login-card .field-hint { display: block; margin-top: 6px; color: #87a0ad; font-size: 9px; font-weight: 650; }
 .attendance-guide { margin: 2px 0 8px; padding: 9px 11px; border-radius: 9px; background: #edf8fd; color: #568096; font-size: 10px; }
 .participant-list > div.attended { background: #f0faf4; opacity: .76; }
