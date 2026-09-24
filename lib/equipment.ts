@@ -126,8 +126,11 @@ export const canRentEquipment = (item: Equipment) =>
   item.manualAvailable && item.status === "available";
 
 export const releaseEquipment = (item: Equipment): Equipment => {
-  const { holderId: _holderId, holderName: _holderName, activeRentalId: _activeRentalId, ...rest } = item;
-  return { ...rest, status: "available" } as Equipment;
+  const released = { ...item };
+  delete released.holderId;
+  delete released.holderName;
+  delete released.activeRentalId;
+  return { ...released, status: "available" } as Equipment;
 };
 
 // A recovered item remains rented until its active rental is returned.

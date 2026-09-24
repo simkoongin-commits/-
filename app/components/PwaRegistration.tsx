@@ -17,6 +17,7 @@ const localDateKey = () => {
 };
 
 const launchedFromHomeScreen = () => {
+  if (typeof window === "undefined") return false;
   const iosStandalone = Boolean(
     (navigator as Navigator & { standalone?: boolean }).standalone,
   );
@@ -25,7 +26,7 @@ const launchedFromHomeScreen = () => {
 
 export default function PwaRegistration() {
   const [signedIn, setSignedIn] = useState(false);
-  const [standalone, setStandalone] = useState(false);
+  const [standalone] = useState(launchedFromHomeScreen);
   const [visible, setVisible] = useState(false);
   const [closed, setClosed] = useState(false);
   const [installedThisVisit, setInstalledThisVisit] = useState(false);
@@ -43,8 +44,10 @@ export default function PwaRegistration() {
   }, []);
 
   useEffect(() => {
-    setStandalone(launchedFromHomeScreen());
-    return onAuthStateChanged(auth, (user) => setSignedIn(Boolean(user)));
+    return onAuthStateChanged(auth, (user) => {
+      setSignedIn(Boolean(user));
+      if (!user) setVisible(false);
+    });
   }, []);
 
   useEffect(() => {
@@ -66,16 +69,13 @@ export default function PwaRegistration() {
   }, []);
 
   useEffect(() => {
-    if (
+    const shouldPrompt =
       !signedIn ||
       standalone ||
       closed ||
       installedThisVisit ||
-      window.localStorage.getItem(DISMISS_KEY) === localDateKey()
-    ) {
-      setVisible(false);
-      return;
-    }
+      window.localStorage.getItem(DISMISS_KEY) === localDateKey();
+    if (shouldPrompt) return;
     const timer = window.setTimeout(() => setVisible(true), 700);
     return () => window.clearTimeout(timer);
   }, [closed, installedThisVisit, signedIn, standalone]);

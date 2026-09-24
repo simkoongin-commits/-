@@ -183,7 +183,7 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setAdding, setDate, setEditMode, setLoading, setMessage, setMode, setPlace, setPoints, setRecordId, setRecords]);
 
   useEffect(() => {
     const initial = window.setTimeout(() => void refresh(), 0);
@@ -349,6 +349,17 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
     }
   };
 
+  const removeLastShot = () => {
+    if (!shots.length || date < koreanToday()) return;
+    if (shots.length === 1) {
+      void deleteRecord({ id: recordId });
+      return;
+    }
+    const nextShots = shots.slice(0, -1);
+    setShots(nextShots);
+    persist(nextShots, date, place, mode);
+  };
+
   const recordCard = (record: RecordItem) => {
     const expanded = expandedId === record.id;
     const editingInline = inlineEditingId === record.id;
@@ -391,7 +402,21 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
         <div className="heart-editor-head"><label>기록 날짜 <input type="date" min={koreanToday()} value={date} onChange={(event) => { const nextDate = event.target.value; if (!nextDate || nextDate < koreanToday()) return; setDate(nextDate); persist(shots, nextDate, place, mode); }} /></label><label>장소<select value={place} onChange={(event) => { setPlace(event.target.value); persist(shots, date, event.target.value, mode); }}>{place && !places.includes(place) && <option value={place}>{place} (기존 장소)</option>}{places.map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label>구분<select value={mode} onChange={(event) => { const nextMode = event.target.value as PracticeMode; setMode(nextMode); persist(shots, date, place, nextMode); }}><option value="원사">원사</option><option value="근사">근사</option></select></label></div>
         <ShotTable shots={shots} active={date >= koreanToday()} onNext={() => { setEditingIndex(null); setPickerOpen(true); }} onEdit={editMode && date >= koreanToday() ? (index) => { setEditingIndex(index); setPickerOpen(true); } : undefined} />
         <ShotSummary shots={shots} />
-        <div className="heart-actions"><button type="button" disabled={date < koreanToday()} onClick={() => setEditMode(!editMode)}>{editMode ? "수정 완료" : "수정"}</button>{editMode && <button type="button" disabled={!shots.length || date < koreanToday()} onClick={() => { if (shots.length === 1) { void deleteRecord({ id: recordId }); return; } const nextShots = shots.slice(0, -1); setShots(nextShots); persist(nextShots, date, place, mode); }}>마지막 발 삭제</button>}<span className="heart-save-status" role="status">{saveStatus === "saving" ? "자동저장 중…" : saveStatus === "failed" ? "자동저장 실패" : saveStatus === "saved" ? "자동저장됨" : ""}</span>{saveStatus === "failed" && <button type="button" onClick={() => persist(shots, date, place, mode)}>다시 시도</button>}<button type="button" className="primary heart-save-button" onClick={() => void saveDraft()}>저장</button></div>
+        <div className="heart-actions">
+          <button type="button" disabled={date < koreanToday()} onClick={() => setEditMode(!editMode)}>
+            {editMode ? "수정 완료" : "수정"}
+          </button>
+          {editMode && (
+            <button type="button" disabled={!shots.length || date < koreanToday()} onClick={removeLastShot}>
+              마지막 시 삭제
+            </button>
+          )}
+          <span className="heart-save-status" role="status">
+            {saveStatus === "saving" ? "자동저장 중…" : saveStatus === "failed" ? "자동저장 실패" : saveStatus === "saved" ? "자동저장됨" : ""}
+          </span>
+          {saveStatus === "failed" && <button type="button" onClick={() => persist(shots, date, place, mode)}>다시 시도</button>}
+          <button type="button" className="primary heart-save-button" onClick={() => void saveDraft()}>저장</button>
+        </div>
         {editMode && <small className="heart-hint">수정할 칸을 누른 뒤 방향 또는 과녁을 다시 선택하세요.</small>}
       </div>}
       {loading ? <p className="heart-empty">기록을 불러오는 중이에요…</p> : mine.length ? <div className="heart-card-list">{mine.map(recordCard)}</div> : <p className="heart-empty">아직 저장한 습사 기록이 없어요.</p>}
