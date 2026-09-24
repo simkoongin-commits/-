@@ -606,7 +606,9 @@ function PublicPortal({
   onDiscard?: (question: PublicQuestion) => void;
   onSaveScenes?: (scenes: PromoScene[]) => void;
 }) {
-  const tab = initialTab || "home";
+  // The former posts surface is intentionally retired. Old browser history
+  // entries still resolve safely to the public home instead of a blank screen.
+  const tab = (initialTab === "posts" ? "home" : initialTab || "home") as PromoTab;
   const [questionSent, setQuestionSent] = useState(false);
   const [questionError, setQuestionError] = useState("");
   const [questionSubmitting, setQuestionSubmitting] = useState(false);
@@ -685,12 +687,6 @@ function PublicPortal({
         >
           Q&amp;A
         </button>
-        <button
-          className={tab === "posts" ? "active" : ""}
-          onClick={() => navigateTab("posts")}
-        >
-          게시물
-        </button>
       </nav>
       {signedIn && (canManagePromotion || (tab === "qa" && isResponder)) && (
         <div className="promo-adminbar">
@@ -704,9 +700,6 @@ function PublicPortal({
             >
               홈 편집
             </button>
-          )}
-          {tab === "posts" && canManagePromotion && (
-            <button onClick={() => setPostEditor(true)}>게시물 추가</button>
           )}
           {tab === "qa" && isResponder && (
             <span className="question-count">

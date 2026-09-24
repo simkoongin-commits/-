@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { memberDisplayLabel } from "../lib/memberDisplay.ts";
-import { restoreEquipmentCondition, validateArrowDeletion } from "../lib/equipment.ts";
+import { arrowConditionLabels, countsTowardInventory, formatArrowCount, restoreEquipmentCondition, validateArrowDeletion } from "../lib/equipment.ts";
 
 const arrow = (id, lengthWeight, index, status = "available") => ({
   id, kind: "arrow", lengthWeight, index, indexNumber: "1", status,
@@ -32,4 +32,18 @@ test("recovered equipment remains rented until an active rental is returned", ()
   const returned = restoreEquipmentCondition(lost, false);
   assert.equal(returned.status, "available");
   assert.equal(returned.activeRentalId, undefined);
+});
+
+test("arrow inventory converts usable arrows into rounds and shots", () => {
+  assert.equal(formatArrowCount(5), "1순");
+  assert.equal(formatArrowCount(14), "2순+4시");
+  assert.equal(formatArrowCount(4), "4시");
+});
+
+test("lost and damaged equipment are excluded and described by arrow number", () => {
+  const lost = { ...arrow("lost", "5555", "C", "lost"), indexNumber: "1" };
+  const damaged = { ...arrow("damaged", "5555", "F", "damaged"), indexNumber: "4" };
+  assert.equal(countsTowardInventory(lost), false);
+  assert.equal(countsTowardInventory(damaged), false);
+  assert.deepEqual(arrowConditionLabels([lost, damaged]), ["C1 분실", "F4 손상"]);
 });

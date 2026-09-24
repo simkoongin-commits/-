@@ -5,11 +5,14 @@ import ArrowInventory from "@/app/components/ArrowInventory";
 import EquipmentCard from "@/app/components/EquipmentCard";
 import EquipmentDetailModal from "@/app/components/EquipmentDetailModal";
 import {
+  arrowConditionLabels,
   assignBowIndexes,
   bowGroupKey,
   canRentEquipment,
+  countsTowardInventory,
   equipmentName,
   equipmentUnavailableReason,
+  formatArrowCount,
   groupArrows,
   makeEquipmentId,
   type ArrowEquipment,
@@ -147,7 +150,7 @@ export default function EquipmentManagement({
   const bowGroups = useMemo(() => groupBows(bows), [bows]);
   const indexedEquipment = useMemo(() => assignBowIndexes(equipment), [equipment]);
   const equipmentStats = useMemo(() => ([
-    { key: "total" as const, label: "전체", items: indexedEquipment },
+    { key: "total" as const, label: "전체", items: indexedEquipment.filter(countsTowardInventory) },
     { key: "available" as const, label: "대여 가능", items: indexedEquipment.filter((item) => item.status === "available" && item.manualAvailable) },
     { key: "unavailable" as const, label: "대여 불가능", items: indexedEquipment.filter((item) => item.status === "available" && !item.manualAvailable) },
     { key: "rented" as const, label: "대여 중", items: indexedEquipment.filter((item) => item.status === "rented") },
@@ -233,8 +236,8 @@ export default function EquipmentManagement({
           {canManageEquipment && <button className="equipment-add" onClick={() => { setArrowPreset({}); setAdding(inventoryTab); }}>+</button>}
         </div>
         {inventoryTab === "bow" ? <div className="bow-inventory">
-          <div className="equipment-count"><span>전체 활</span><strong>{bows.length}개</strong></div>
-          {bowGroups.size ? <div className="bow-tree">{[...bowGroups].map(([group, items]) => { const sample = items[0]; return items.length === 1 ? <EquipmentCard key={group} item={sample} compact onClick={() => openEquipment(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {items.length}개</small></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>; })}</div> : <Empty text="등록된 활이 없어요." />}
+          <div className="equipment-count"><span>전체 활</span><strong>{bows.filter(countsTowardInventory).length}개</strong></div>
+          {bowGroups.size ? <div className="bow-tree">{[...bowGroups].map(([group, items]) => { const sample = items[0]; const counted = items.filter(countsTowardInventory).length; const lost = items.filter((item) => item.status === "lost").length; const damaged = items.filter((item) => item.status === "damaged").length; return items.length === 1 ? <EquipmentCard key={group} item={sample} compact showBowIndex={false} onClick={() => openEquipment(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><span className="equipment-group-counts"><small>총 {counted}개</small>{lost > 0 && <small className="condition">분실 {lost}개</small>}{damaged > 0 && <small className="condition">손상 {damaged}개</small>}</span></summary><div className="equipment-grid">{items.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => openEquipment(item)} />)}</div></details>; })}</div> : <Empty text="등록된 활이 없어요." />}
         </div> : <ArrowInventory
           arrows={arrows}
           canManage={canManageEquipment}
@@ -300,8 +303,8 @@ function EquipmentStatDetail({ label, items, onOpen }: { label: string; items: E
   const statBowGroups = groupBows(statBows);
   const statArrowGroups = groupArrows(statArrows);
   return <div className="equipment-stat-detail"><header><b>{label} 장비</b><span>{items.length}개</span></header>{items.length ? <div className="equipment-stat-kinds">
-    {statBows.length > 0 && <section><h4>활 <small>{statBows.length}개</small></h4><div className="bow-tree">{[...statBowGroups].map(([group, bows]) => { const sample = bows[0]; return bows.length === 1 ? <EquipmentCard key={group} item={sample} compact onClick={() => onOpen(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {bows.length}개</small></summary><div className="equipment-grid">{bows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>; })}</div></section>}
-    {statArrows.length > 0 && <section><h4>화살 <small>{statArrows.length}개</small></h4><div className="arrow-tree">{[...statArrowGroups].map(([group, indexes]) => <details key={group}><summary><span>{group}</span><small>{[...indexes.values()].flat().length}개</small></summary><div>{[...indexes].map(([index, arrows]) => <details key={index}><summary><span>{index}</span><small>{arrows.length}개</small></summary><div className="equipment-grid">{arrows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>)}</div></details>)}</div></section>}
+    {statBows.length > 0 && <section><h4>활 <small>{statBows.filter(countsTowardInventory).length}개</small></h4><div className="bow-tree">{[...statBowGroups].map(([group, bows]) => { const sample = bows[0]; const counted = bows.filter(countsTowardInventory).length; return bows.length === 1 ? <EquipmentCard key={group} item={sample} compact showBowIndex={false} onClick={() => onOpen(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {counted}개</small></summary><div className="equipment-grid">{bows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>; })}</div></section>}
+    {statArrows.length > 0 && <section><h4>화살 <small>{statArrows.filter(countsTowardInventory).length}개</small></h4><div className="arrow-tree">{[...statArrowGroups].map(([group, indexes]) => { const groupItems = [...indexes.values()].flat(); return <details key={group}><summary><span>{group}</span><small>{formatArrowCount(groupItems.filter(countsTowardInventory).length)}</small></summary><div>{[...indexes].map(([index, arrows]) => <details key={index}><summary><span>{index}</span><span className="arrow-count-labels"><small>{formatArrowCount(arrows.filter(countsTowardInventory).length)}</small>{arrowConditionLabels(arrows).map((condition) => <small className="condition" key={condition}>{condition}</small>)}</span></summary><div className="equipment-grid">{arrows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>)}</div></details>; })}</div></section>}
   </div> : <p>해당하는 장비가 없어요.</p>}</div>;
 }
 

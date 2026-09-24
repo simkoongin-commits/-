@@ -39,6 +39,28 @@ export const groupArrows = (arrows: ArrowEquipment[]) => {
   }
   return groups;
 };
+
+export const countsTowardInventory = (item: Equipment) =>
+  item.status !== "lost" && item.status !== "damaged";
+
+export const formatArrowCount = (count: number) => {
+  const rounds = Math.floor(count / 5);
+  const shots = count % 5;
+  if (rounds && shots) return `${rounds}순+${shots}시`;
+  if (rounds) return `${rounds}순`;
+  return `${shots}시`;
+};
+
+export const arrowConditionLabels = (arrows: ArrowEquipment[]) => {
+  const labelFor = (status: "lost" | "damaged", label: string) => {
+    const indexes = arrows
+      .filter((arrow) => arrow.status === status)
+      .map((arrow) => `${arrow.index}${arrow.indexNumber}`)
+      .sort((a, b) => a.localeCompare(b, "ko", { numeric: true }));
+    return indexes.length ? `${indexes.join(", ")} ${label}` : "";
+  };
+  return [labelFor("lost", "분실"), labelFor("damaged", "손상")].filter(Boolean);
+};
 export type RentalNoteType = "lost" | "damaged" | "custom";
 
 export type RentalNote = {
@@ -113,6 +135,11 @@ export const equipmentName = (item: Equipment) =>
   item.kind === "bow"
     ? `${item.indexNumber ? `#${item.indexNumber} · ` : ""}${item.pound}lb · ${item.length} · ${item.side}`
     : `${item.lengthWeight} · ${item.index} · ${item.indexNumber}`;
+
+export const equipmentNameWithoutBowIndex = (item: Equipment) =>
+  item.kind === "bow"
+    ? `${item.pound}lb · ${item.length} · ${item.side}`
+    : equipmentName(item);
 
 export const equipmentUnavailableReason = (item: Equipment) => {
   if (item.status === "rented") return "다른 회원이 대여 중";
