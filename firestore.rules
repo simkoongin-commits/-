@@ -39,6 +39,14 @@ service cloud.firestore {
         // 답변·수정·삭제는 Firebase Admin SDK를 사용하는 서버 API에서 처리합니다.
         allow update, delete: if false;
       }
+
+      match /promo-scenes/{sceneId} {
+        allow read: if true;
+        allow create, update: if request.auth != null
+          && request.resource.data.image is string
+          && request.resource.data.image.size() < 900000;
+        allow delete: if request.auth != null;
+      }
     }
   }
 }
