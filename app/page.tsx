@@ -12,6 +12,7 @@ import {
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   runTransaction,
@@ -267,6 +268,39 @@ const defaultPublicPosts: PublicPost[] = [
     date: "2026. 09. 10.",
   },
 ];
+
+const optimizePromoImage = (file: File) => new Promise<string>((resolve, reject) => {
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    const maxSide = 1800;
+    const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("image-canvas-unavailable"));
+      return;
+    }
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    let quality = .84;
+    let result = canvas.toDataURL("image/webp", quality);
+    while (result.length > 780_000 && quality > .42) {
+      quality -= .08;
+      result = canvas.toDataURL("image/webp", quality);
+    }
+    URL.revokeObjectURL(objectUrl);
+    if (result.length > 900_000) reject(new Error("optimized-image-too-large"));
+    else resolve(result);
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(objectUrl);
+    reject(new Error("image-load-failed"));
+  };
+  image.src = objectUrl;
+});
 
 const seedPractices: Practice[] = [
   {
@@ -587,7 +621,10 @@ function PublicPortal({
   onDeletePost?: (id: string) => void;
   onAnswer?: (question: PublicQuestion, answer: string) => void;
   onDiscard?: (question: PublicQuestion) => void;
-  onSaveScenes?: (scenes: PromoScene[]) => void;
+  onSaveScenes?: (
+    scenes: PromoScene[],
+    files: Record<string, File>,
+  ) => Promise<void>;
 }) {
   // The former posts surface is intentionally retired. Old browser history
   // entries still resolve safely to the public home instead of a blank screen.
@@ -604,6 +641,9 @@ function PublicPortal({
   const [sceneDrafts, setSceneDrafts] = useState<PromoScene[]>(
     scenes || defaultPromoScenes,
   );
+  const [sceneFiles, setSceneFiles] = useState<Record<string, File>>({});
+  const [savingHome, setSavingHome] = useState(false);
+  const [homeSaveError, setHomeSaveError] = useState("");
   const [postEditor, setPostEditor] = useState(false);
   const [postDraft, setPostDraft] = useState({ title: "", body: "" });
   const [postFiles, setPostFiles] = useState<File[]>([]);
@@ -678,6 +718,8 @@ function PublicPortal({
             <button
               onClick={() => {
                 setSceneDrafts(shownScenes);
+                setSceneFiles({});
+                setHomeSaveError("");
                 setEditingHome(true);
               }}
             >
@@ -919,22 +961,54 @@ function PublicPortal({
                     }
                   />
                 </label>
-                <label>
-                  배경 사진 주소 <small>선택</small>
+                <label className="scene-image-field">
+                  배경 사진 <small>선택 · 최대 15MB</small>
                   <input
-                    value={scene.image || ""}
-                    onChange={(e) =>
-                      setSceneDrafts((all) =>
-                        all.map((item) =>
-                          item.id === scene.id
-                            ? { ...item, image: e.target.value }
-                            : item,
-                        ),
-                      )
-                    }
-                    placeholder="https://..."
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/avif"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (!file.type.startsWith("image/")) {
+                        setHomeSaveError("사진 파일만 첨부할 수 있어요.");
+                        e.target.value = "";
+                        return;
+                      }
+                      if (file.size > 15 * 1024 * 1024) {
+                        setHomeSaveError("사진은 15MB 이하로 첨부해주세요.");
+                        e.target.value = "";
+                        return;
+                      }
+                      setHomeSaveError("");
+                      setSceneFiles((current) => ({ ...current, [scene.id]: file }));
+                    }}
                   />
+                  {sceneFiles[scene.id] ? (
+                    <span className="scene-image-selected">새 사진: {sceneFiles[scene.id].name}</span>
+                  ) : scene.image ? (
+                    <span className="scene-image-selected">현재 사진이 등록되어 있어요.</span>
+                  ) : (
+                    <span className="scene-image-empty">사진이 없으면 기본 배경이 표시돼요.</span>
+                  )}
                 </label>
+                {(scene.image || sceneFiles[scene.id]) && (
+                  <button
+                    type="button"
+                    className="scene-image-remove"
+                    onClick={() => {
+                      setSceneFiles((current) => {
+                        const next = { ...current };
+                        delete next[scene.id];
+                        return next;
+                      });
+                      setSceneDrafts((all) => all.map((item) =>
+                        item.id === scene.id ? { ...item, image: undefined } : item,
+                      ));
+                    }}
+                  >
+                    사진 제거
+                  </button>
+                )}
                 <label>
                   화면 분위기
                   <select
@@ -959,16 +1033,28 @@ function PublicPortal({
                 </label>
               </div>
             ))}
+            {homeSaveError && <p className="form-error">{homeSaveError}</p>}
             <div className="modal-actions">
-              <button onClick={() => setEditingHome(false)}>취소</button>
+              <button disabled={savingHome} onClick={() => setEditingHome(false)}>취소</button>
               <button
                 className="primary"
-                onClick={() => {
-                  onSaveScenes?.(sceneDrafts);
-                  setEditingHome(false);
+                disabled={savingHome}
+                onClick={async () => {
+                  if (!onSaveScenes || savingHome) return;
+                  setSavingHome(true);
+                  setHomeSaveError("");
+                  try {
+                    await onSaveScenes(sceneDrafts, sceneFiles);
+                    setEditingHome(false);
+                  } catch (error) {
+                    console.error("Promotional home upload failed", error);
+                    setHomeSaveError("사진을 올리지 못했어요. 잠시 후 다시 시도해주세요.");
+                  } finally {
+                    setSavingHome(false);
+                  }
                 }}
               >
-                게시
+                {savingHome ? "게시 중" : "게시"}
               </button>
             </div>
           </section>
@@ -1175,6 +1261,7 @@ export default function Home() {
   );
   const [publicScenes, setPublicScenes] =
     useState<PromoScene[]>(defaultPromoScenes);
+  const [publicSceneImages, setPublicSceneImages] = useState<Record<string, string>>({});
   const [publicPosts, setPublicPosts] =
     useState<PublicPost[]>(defaultPublicPosts);
   const [publicQuestions, setPublicQuestions] = useState<PublicQuestion[]>([]);
@@ -1290,6 +1377,28 @@ export default function Home() {
           setPublicPosts(data.posts as PublicPost[]);
       }),
     [],
+  );
+  useEffect(
+    () => onSnapshot(
+      collection(db, "public", "simgunghoe", "promo-scenes"),
+      (snapshot) => {
+        const next: Record<string, string> = {};
+        snapshot.docs.forEach((item) => {
+          const image = item.data().image;
+          if (typeof image === "string" && image.startsWith("data:image/")) next[item.id] = image;
+        });
+        setPublicSceneImages(next);
+      },
+      () => setPublicSceneImages({}),
+    ),
+    [],
+  );
+  const shownPublicScenes = useMemo(
+    () => publicScenes.map((scene) => publicSceneImages[scene.id]
+      ? { ...scene, image: publicSceneImages[scene.id] }
+      : scene,
+    ),
+    [publicScenes, publicSceneImages],
   );
   useEffect(
     () =>
@@ -1663,7 +1772,7 @@ export default function Home() {
           <PublicPortal
             signedIn={false}
             onAuth={setAuthOverlay}
-            scenes={publicScenes}
+            scenes={shownPublicScenes}
             posts={publicPosts}
             questions={publicQuestions}
             onQuestion={submitPublicQuestion}
@@ -2155,17 +2264,45 @@ export default function Home() {
           onAuth={() => undefined}
           onMember={() => setTopTab("member")}
           session={session}
-          scenes={publicScenes}
+          scenes={shownPublicScenes}
           posts={publicPosts}
           questions={publicQuestions}
           onQuestion={submitPublicQuestion}
-          onSaveScenes={(scenes) => {
-            setPublicScenes(scenes);
-            void setDoc(
+          onSaveScenes={async (scenes, files) => {
+            const uploadedImages: Record<string, string> = {};
+            for (const [sceneId, file] of Object.entries(files)) {
+              const image = await optimizePromoImage(file);
+              await setDoc(
+                doc(db, "public", "simgunghoe", "promo-scenes", sceneId),
+                { image, updatedAt: new Date().toISOString() },
+              );
+              uploadedImages[sceneId] = image;
+            }
+            const removedSceneIds = scenes
+              .filter((scene) => !scene.image && publicSceneImages[scene.id] && !files[scene.id])
+              .map((scene) => scene.id);
+            await Promise.all(removedSceneIds.map((sceneId) => deleteDoc(
+              doc(db, "public", "simgunghoe", "promo-scenes", sceneId),
+            )));
+            const next = scenes.map((scene) => {
+              const { image, ...content } = scene;
+              const original = publicScenes.find((item) => item.id === scene.id);
+              if (!files[scene.id] && !publicSceneImages[scene.id] && image && original?.image) {
+                return { ...content, image };
+              }
+              return content;
+            });
+            await setDoc(
               doc(db, "public", "simgunghoe"),
-              { scenes },
+              { scenes: next },
               { merge: true },
             );
+            setPublicScenes(next);
+            setPublicSceneImages((current) => {
+              const updated = { ...current, ...uploadedImages };
+              removedSceneIds.forEach((sceneId) => delete updated[sceneId]);
+              return updated;
+            });
             notify("홍보 홈을 게시했어요");
           }}
           onSavePost={async (post, files) => {
