@@ -22,6 +22,7 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import dynamic from "next/dynamic";
 import sanitizeHtml from "sanitize-html";
 import { auth, db, storage } from "@/lib/firebase";
+import PromoHome, { type PromoScene } from "@/app/components/PromoHome";
 import type { EquipmentDraft } from "@/app/components/EquipmentManagement";
 import { defaultPracticePlaces } from "@/lib/practicePlaces";
 import {
@@ -103,14 +104,6 @@ type PublicQuestion = {
   answer?: string;
   answeredBy?: string;
   createdAt: string;
-};
-type PromoScene = {
-  id: string;
-  eyebrow: string;
-  title: string;
-  body: string;
-  theme: "sky" | "ink" | "foam";
-  image?: string;
 };
 type MemberView =
   | "cards"
@@ -699,35 +692,7 @@ function PublicPortal({
         </div>
       )}
       {tab === "home" && (
-        <section id="top" className="promo-home">
-          {shownScenes.map((scene, index) => (
-            <article key={scene.id} className={`promo-scene ${scene.theme}`}>
-              {scene.image && (
-                <img className="promo-scene-image" src={scene.image} alt="" />
-              )}
-              <div className="scene-orbit" aria-hidden="true" />
-              <p>{scene.eyebrow}</p>
-              <h1>
-                {scene.title.split("\n").map((line) => (
-                  <span key={line}>{line}</span>
-                ))}
-              </h1>
-              <div className="scene-copy">
-                <span>0{index + 1}</span>
-                <p>{scene.body}</p>
-              </div>
-            </article>
-          ))}
-          <article className="promo-cta">
-            <p>SIMKOONG ARCHERY CLUB</p>
-            <h2>
-              우리의 다음 화살은
-              <br />
-              당신과 함께.
-            </h2>
-            <button onClick={() => navigateTab("qa")}>궁금한 점 물어보기</button>
-          </article>
-        </section>
+        <PromoHome scenes={shownScenes} onAsk={() => navigateTab("qa")} />
       )}
       {tab === "qa" && (
         <section className="public-content">
