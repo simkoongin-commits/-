@@ -36,6 +36,21 @@ Vercel 프로젝트의 Environment Variables에 아래 이름으로 등록합니
 - 장비 삭제는 화면에서만 걸러서는 안 됩니다. `app/page.tsx`의 Firestore 트랜잭션에서 최신 데이터로 다시 검증합니다.
 - 기능 변경 시 `npm test`를 실행합니다. 이 명령은 프로덕션 빌드와 `tests/`의 도메인 테스트를 모두 수행합니다.
 
+### 회원가입 허용 명단
+
+- 신규 회원은 관리자가 회원 탭 하단의 **회원가입 허용 명단**에 이름과 학번을 먼저 등록해야 가입할 수 있습니다.
+- `/api/register`가 Firebase Admin SDK로 이름·학번을 다시 검증한 뒤 Authentication 계정과 회원 레코드를 함께 만듭니다. 클라이언트 화면만 우회해서 임의 계정을 만드는 방식은 허용하지 않습니다.
+- 사용한 허용 항목에는 `usedAt`, `usedBy`가 기록되어 다시 사용할 수 없습니다. 명단 변경도 `/api/admin/signup-permissions`에서 관리자 권한을 재검증합니다.
+- 이 기능에도 `FIREBASE_ADMIN_*` 환경 변수 3개가 필요합니다.
+- 허용 명단 정규화와 검증 규칙은 `lib/signupPermissions.ts`에 있습니다.
+- 일반 브라우저가 허용 명단을 바꾸지 못하게 `firestore.rules`도 함께 배포해야 합니다: `firebase deploy --only firestore:rules`.
+
+### 홍보 홈 외부 제작
+
+- Manus AI에 전달할 전체 명세와 결과물 형식은 [`docs/manus-promo-home-spec.md`](docs/manus-promo-home-spec.md)에 있습니다.
+- 홈은 여러 슬라이드가 아니라 하나의 긴 연속형 스크롤 페이지여야 하며, 기존 인증·Q&A 로직을 변경하면 안 됩니다.
+- 교육 메뉴는 화면에서 제거했지만 기존 시간표·도제 프로그램 데이터는 복구 가능하도록 Firestore에 보존합니다.
+
 ### 心五시 心五중
 
 - 기록 화면은 `app/components/HeartFive.tsx`, 입력값 검증과 통계 계산은 `lib/heartFive.ts`에 있습니다.

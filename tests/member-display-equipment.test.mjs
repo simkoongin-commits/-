@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { memberDisplayLabel } from "../lib/memberDisplay.ts";
-import { arrowConditionLabels, countsTowardInventory, formatArrowCount, restoreEquipmentCondition, validateArrowDeletion } from "../lib/equipment.ts";
+import { arrowConditionLabels, countsTowardInventory, formatArrowCount, formatGroupedArrowCount, restoreEquipmentCondition, validateArrowDeletion } from "../lib/equipment.ts";
 
 const arrow = (id, lengthWeight, index, status = "available") => ({
   id, kind: "arrow", lengthWeight, index, indexNumber: "1", status,
@@ -38,6 +38,17 @@ test("arrow inventory converts usable arrows into rounds and shots", () => {
   assert.equal(formatArrowCount(5), "1순");
   assert.equal(formatArrowCount(14), "2순+4시");
   assert.equal(formatArrowCount(4), "4시");
+});
+
+test("partial alphabet indexes do not combine into complete rounds", () => {
+  const arrows = [];
+  for (const index of ["B", "C", "D", "E", "F", "G"]) {
+    for (let number = 1; number <= 5; number += 1) {
+      if ((index === "C" || index === "F") && number === 1) continue;
+      arrows.push({ ...arrow(`${index}${number}`, "5555", index), indexNumber: String(number) });
+    }
+  }
+  assert.equal(formatGroupedArrowCount(arrows), "4순+8시");
 });
 
 test("lost and damaged equipment are excluded and described by arrow number", () => {

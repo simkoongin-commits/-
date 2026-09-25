@@ -4,7 +4,6 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import {
   browserLocalPersistence,
-  createUserWithEmailAndPassword,
   onAuthStateChanged,
   setPersistence,
   signInWithEmailAndPassword,
@@ -14,7 +13,6 @@ import {
   addDoc,
   collection,
   doc,
-  getDoc,
   onSnapshot,
   runTransaction,
   setDoc,
@@ -45,6 +43,7 @@ import {
 } from "@/lib/practiceStats";
 import { memberSnapshot, nextTerm, normalizeTermSnapshots, normalizeWithdrawals, termOrder, type TermSnapshot, type WithdrawalRecord, validTerm } from "@/lib/membershipHistory";
 import { memberDisplayLabel } from "@/lib/memberDisplay";
+import { normalizeSignupPermissions, type SignupPermission } from "@/lib/signupPermissions";
 import {
   gradeFor,
   leaderPositionForTeam,
@@ -114,7 +113,6 @@ type PromoScene = {
   image?: string;
 };
 type MemberView =
-  | "education"
   | "cards"
   | "calendar"
   | "members"
@@ -201,14 +199,6 @@ const readEducationCache = <T,>(kind: "schedules" | "mentors", fallback: T) => {
     return fallback;
   }
 };
-const writeEducationCache = (kind: "schedules" | "mentors", value: unknown) => {
-  try {
-    window.localStorage.setItem(educationCacheKey(kind), JSON.stringify(value));
-  } catch {
-    /* Firebase 저장이 기본이며, 브라우저 보관은 보조 수단입니다. */
-  }
-};
-
 const initialMembers: Member[] = [
   {
     id: "20231234",
@@ -469,11 +459,11 @@ function LoginScreen({
         "code" in registrationError
           ? String(registrationError.code)
           : "";
-      setMessage(
-        code === "auth/email-already-in-use"
+      setMessage(registrationError instanceof Error
+        ? registrationError.message
+        : code === "auth/email-already-in-use"
           ? "이미 가입된 학번입니다. 로그인해주세요."
-          : "회원가입을 완료하지 못했어요. 잠시 후 다시 시도해주세요.",
-      );
+          : "회원가입을 완료하지 못했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setSubmitting(false);
     }
@@ -502,7 +492,7 @@ function LoginScreen({
         <p>
           {mode === "login"
             ? "학번과 비밀번호로 로그인해주세요."
-            : "가입 후 바로 습사 일정표를 이용할 수 있어요."}
+            : "관리자가 미리 등록한 이름과 학번으로만 가입할 수 있어요."}
         </p>
         <form onSubmit={mode === "login" ? login : register}>
           <label>
@@ -1236,6 +1226,7 @@ export default function Home() {
   const [archivedPractices, setArchivedPractices] = useState<ArchivedPractice[]>([]);
   const [termSnapshots, setTermSnapshots] = useState<TermSnapshot[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
+  const [signupPermissions, setSignupPermissions] = useState<SignupPermission[]>([]);
   const [deletionTarget, setDeletionTarget] = useState<Member | null>(null);
   const [deletionTerm, setDeletionTerm] = useState("26-2");
   const [deletionBusy, setDeletionBusy] = useState(false);
@@ -1301,7 +1292,7 @@ export default function Home() {
       setMenuOpen(false);
       setProfileOpen(false);
       setTopTab(state.topTab);
-      setView(state.view);
+      setView((state.view as string) === "education" ? "cards" : state.view);
       setPromoStartTab(state.promoTab);
       window.setTimeout(() => {
         applyingHistory.current = false;
@@ -1356,6 +1347,7 @@ export default function Home() {
           termSnapshots: [],
           withdrawals: [],
           practicePlaces: defaultPracticePlaces,
+          signupPermissions: [],
           }).catch(() => {
             setAccessError(
               "공동 일정판을 준비하지 못했어요. 다시 로그인한 뒤 시도해주세요.",
@@ -1407,6 +1399,7 @@ export default function Home() {
             termSnapshots: normalizeTermSnapshots(data.termSnapshots),
             withdrawals: normalizeWithdrawals(data.withdrawals),
             practicePlaces: storedPlaces,
+            signupPermissions: normalizeSignupPermissions(data.signupPermissions),
           };
           cloudState.current = JSON.stringify(emptyState);
           setPractices(emptyState.practices);
@@ -1419,6 +1412,7 @@ export default function Home() {
           setTermSnapshots(emptyState.termSnapshots);
           setWithdrawals(emptyState.withdrawals);
           setPracticePlaces(emptyState.practicePlaces);
+          setSignupPermissions(emptyState.signupPermissions);
           setNeedsBootstrap(true);
           setReady(true);
           return;
@@ -1452,6 +1446,7 @@ export default function Home() {
           termSnapshots: normalizeTermSnapshots(data.termSnapshots),
           withdrawals: normalizeWithdrawals(data.withdrawals),
           practicePlaces: storedPlaces,
+          signupPermissions: normalizeSignupPermissions(data.signupPermissions),
         };
         cloudState.current = JSON.stringify(next);
         setPractices(next.practices);
@@ -1469,6 +1464,7 @@ export default function Home() {
         setTermSnapshots(next.termSnapshots);
         setWithdrawals(next.withdrawals);
         setPracticePlaces(next.practicePlaces);
+        setSignupPermissions(next.signupPermissions);
         setSession(member);
         if (initializedMemberViewFor.current !== authUser.uid) {
           initializedMemberViewFor.current = authUser.uid;
@@ -1503,6 +1499,7 @@ export default function Home() {
       termSnapshots,
       withdrawals,
       practicePlaces,
+      signupPermissions,
     });
     if (cloudState.current === next) return;
     cloudState.current = next;
@@ -1528,7 +1525,7 @@ export default function Home() {
         "공동 데이터 저장에 실패했어요. 잠시 후 다시 시도해주세요.",
       );
     });
-  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, termSnapshots, withdrawals, practicePlaces, ready, authUser]);
+  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, termSnapshots, withdrawals, practicePlaces, signupPermissions, ready, authUser]);
   useEffect(() => {
     if (!ready || !authUser) return;
     const cleanExpiredRentals = async () => {
@@ -1577,7 +1574,7 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [ready, authUser]);
   const finishBootstrap = async (member: Member) => {
-    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, termSnapshots, withdrawals, practicePlaces };
+    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, termSnapshots, withdrawals, practicePlaces, signupPermissions };
     try {
       await setDoc(doc(db, "clubs", "simgunghoe"), next);
       cloudState.current = JSON.stringify(next);
@@ -1607,35 +1604,14 @@ export default function Home() {
     registrationInProgress.current = true;
     try {
       await setPersistence(auth, browserLocalPersistence);
-      await createUserWithEmailAndPassword(
-        auth,
-        authEmail(studentId),
-        password,
-      );
-      const clubDoc = doc(db, "clubs", "simgunghoe");
-      const snapshot = await getDoc(clubDoc);
-      if (!snapshot.exists()) throw new Error("club-not-ready");
-      const data = snapshot.data();
-      const term =
-        typeof data.currentTerm === "string" ? data.currentTerm : "26-2";
-      const existing = Array.isArray(data.members)
-        ? (data.members as Member[])
-        : [];
-      if (existing.some((member) => member.id === studentId))
-        throw new Error("duplicate-member");
-      const member: Member = {
-        id: studentId,
-        name: name.trim(),
-        joinTerm,
-        grade: gradeFor(joinTerm, term),
-        role: "회원",
-        position: "",
-      };
-      await setDoc(
-        clubDoc,
-        { members: [...existing, member] },
-        { merge: true },
-      );
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, password, name, joinTerm }),
+      });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(result.error || "회원가입을 완료하지 못했어요.");
+      await signInWithEmailAndPassword(auth, authEmail(studentId), password);
     } finally {
       registrationInProgress.current = false;
     }
@@ -1758,6 +1734,21 @@ export default function Home() {
       if (!response.ok) throw new Error("계정 삭제 서버에 일시적인 오류가 있어요. 배포가 완료된 뒤 다시 시도해주세요.");
     }
     if (!response.ok) throw new Error(result.error || "계정을 삭제하지 못했어요.");
+  };
+  const requestSignupPermissionChange = async (
+    method: "POST" | "DELETE",
+    permission: Pick<SignupPermission, "studentId" | "name">,
+  ) => {
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("로그인이 필요해요.");
+    const query = method === "DELETE" ? `?studentId=${encodeURIComponent(permission.studentId)}` : "";
+    const response = await fetch(`/api/admin/signup-permissions${query}`, {
+      method,
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      ...(method === "POST" ? { body: JSON.stringify(permission) } : {}),
+    });
+    const result = await response.json().catch(() => ({})) as { error?: string };
+    if (!response.ok) throw new Error(result.error || "가입 허용 정보를 변경하지 못했어요.");
   };
   const openDeletion = (member: Member) => {
     setDeletionTarget(member);
@@ -2024,24 +2015,6 @@ export default function Home() {
       const selectedIds = new Set(ids);
       transaction.set(clubRef, { equipment: current.filter((item) => !selectedIds.has(item.id)) }, { merge: true });
     });
-  };
-  const saveEducationSchedules = (next: EducationSchedule[]) => {
-    setEducationSchedules(next);
-    writeEducationCache("schedules", next);
-    void setDoc(
-      doc(db, "clubs", "simgunghoe"),
-      { educationSchedules: next },
-      { merge: true },
-    ).then(() => notify("교육 시간표를 저장했어요")).catch(() => notify("교육 시간표를 저장하지 못했어요. 다시 시도해주세요."));
-  };
-  const saveMentors = (next: Mentor[]) => {
-    setMentors(next);
-    writeEducationCache("mentors", next);
-    void setDoc(
-      doc(db, "clubs", "simgunghoe"),
-      { mentors: next },
-      { merge: true },
-    ).then(() => notify("도제 프로그램 정보를 저장했어요")).catch(() => notify("도제 프로그램 정보를 저장하지 못했어요. 다시 시도해주세요."));
   };
   const saveCalendarEvent = (event: CalendarEvent) => {
     const editing = calendarEvents.some((item) => item.id === event.id);
@@ -2317,7 +2290,7 @@ export default function Home() {
           </button>
         </div>
       </div>
-      {view !== "education" && <section className="hero">
+      <section className="hero">
         <img
           className="hero-logo"
           src="/simkoong-heart.png"
@@ -2366,7 +2339,7 @@ export default function Home() {
               : "등록된 일정 없음"}
           </small>
         </button>
-      </section>}
+      </section>
       {menuOpen && <button className="menu-scrim" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />}
       <button className={menuOpen ? "menu-toggle open" : "menu-toggle"} aria-label="메뉴 펼치기" onClick={() => setMenuOpen((open) => !open)}>☰</button>
       <nav className={menuOpen ? "tabs expanded" : "tabs"} aria-label="회원 메뉴">
@@ -2379,12 +2352,6 @@ export default function Home() {
         </button>
         <button className={view === "heartFive" ? "active" : ""} onClick={() => { setView("heartFive"); setMenuOpen(false); }}>
           <span>◎</span>心五시 心五중
-        </button>
-        <button
-          className={view === "education" ? "active" : ""}
-          onClick={() => { setView("education"); setMenuOpen(false); }}
-        >
-          <span>✦</span>교육
         </button>
         <button
           className={view === "calendar" ? "active" : ""}
@@ -2643,17 +2610,6 @@ export default function Home() {
           </button>
         </section>
       )}
-      {view === "education" && (
-        <Education
-          schedules={educationSchedules}
-          mentors={mentors}
-          session={session}
-          members={clubMembers}
-          onSchedules={saveEducationSchedules}
-          onMentors={saveMentors}
-          notify={notify}
-        />
-      )}
       {view === "calendar" && (
         <Calendar
           practices={practices}
@@ -2697,6 +2653,7 @@ export default function Home() {
       {view === "members" && (
         <Members
           members={clubMembers}
+          signupPermissions={signupPermissions}
           session={session}
           currentTerm={currentTerm}
           onCurrentTermChange={(term) => {
@@ -2709,15 +2666,6 @@ export default function Home() {
             );
             setSession((s) => ({ ...s, grade: gradeFor(s.joinTerm, term) }));
             notify(`현재 학기를 ${term}로 변경했어요`);
-          }}
-          onAddMember={(member) => {
-            if (clubMembers.some((m) => m.id === member.id)) {
-              notify("이미 등록된 학번이에요");
-              return false;
-            }
-            setClubMembers((all) => [...all, member]);
-            notify("회원을 등록했어요");
-            return true;
           }}
           onUpdateMember={(member) => {
             const previous = clubMembers.find((item) => item.id === member.id);
@@ -2796,6 +2744,28 @@ export default function Home() {
             );
           }}
           onDeleteMember={openDeletion}
+          onAddSignupPermission={async (permission) => {
+            try {
+              await requestSignupPermissionChange("POST", permission);
+              setSignupPermissions((current) => [...current, { ...permission, createdAt: new Date().toISOString() }]);
+              notify("가입 허용 명단에 추가했어요");
+              return true;
+            } catch (error) {
+              notify(error instanceof Error ? error.message : "가입 허용 정보를 저장하지 못했어요");
+              return false;
+            }
+          }}
+          onDeleteSignupPermission={async (permission) => {
+            try {
+              await requestSignupPermissionChange("DELETE", permission);
+              setSignupPermissions((current) => current.filter((item) => item.studentId !== permission.studentId));
+              notify("가입 허용 명단에서 삭제했어요");
+              return true;
+            } catch (error) {
+              notify(error instanceof Error ? error.message : "가입 허용 정보를 삭제하지 못했어요");
+              return false;
+            }
+          }}
         />
       )}
       {view === "hall" && (
@@ -3195,6 +3165,8 @@ function Participants({
   );
 }
 
+// Kept as an archived renderer while legacy education data remains recoverable.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Education({
   schedules,
   mentors,
@@ -3660,33 +3632,39 @@ function Calendar({
 }
 function Members({
   members,
+  signupPermissions,
   session,
   currentTerm,
   onCurrentTermChange,
-  onAddMember,
   onUpdateMember,
   onTeamChange,
   onCleanupAuth,
   onRoleChange,
   onDeleteMember,
+  onAddSignupPermission,
+  onDeleteSignupPermission,
 }: {
   members: Member[];
+  signupPermissions: SignupPermission[];
   session: Member;
   currentTerm: string;
   onCurrentTermChange: (term: string) => void;
-  onAddMember: (member: Member) => boolean;
   onUpdateMember: (member: Member) => boolean;
   onTeamChange: (id: string, team: Member["team"]) => void;
   onCleanupAuth: (studentId: string) => Promise<boolean>;
   onRoleChange: (id: string, role: Member["role"]) => void;
   onDeleteMember: (member: Member) => void;
+  onAddSignupPermission: (permission: Pick<SignupPermission, "studentId" | "name">) => Promise<boolean>;
+  onDeleteSignupPermission: (permission: SignupPermission) => Promise<boolean>;
 }) {
   const [memberTab, setMemberTab] = useState<"members" | "roles">("members");
-  const [showAdd, setShowAdd] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [teamSelections, setTeamSelections] = useState<Partial<Record<TeamName, string>>>({});
   const [cleanupStudentId, setCleanupStudentId] = useState("");
   const [cleanupBusy, setCleanupBusy] = useState(false);
+  const [signupStudentId, setSignupStudentId] = useState("");
+  const [signupName, setSignupName] = useState("");
+  const [signupBusy, setSignupBusy] = useState(false);
   const unassignedTeamMembers = members.filter((member) => !memberTeam(member));
   const [termYear, termSemester] = currentTerm.split("-").map(Number);
   const moveTerm = (direction: 1 | -1) => {
@@ -3709,15 +3687,6 @@ function Members({
             회원 <span className="member-count">{members.length}명</span>
           </h2>
         </div>
-        {session.role === "관리자" && memberTab === "members" && (
-          <button
-            className="primary add-button"
-            onClick={() => setShowAdd(true)}
-            aria-label="회원 등록"
-          >
-            <span>＋</span>
-          </button>
-        )}
       </div>
       <div className="member-section-tabs" aria-label="회원 관리 구분">
         <button className={memberTab === "members" ? "active" : ""} onClick={() => setMemberTab("members")}>회원</button>
@@ -3782,6 +3751,22 @@ function Members({
         ))}
       </div>
       {session.role === "관리자" && <div className="orphan-account-cleanup"><div><b>삭제된 계정 다시 가입</b><small>회원 목록에서는 지웠지만 가입 계정이 남아 있는 학번을 초기화해요.</small></div><div><input inputMode="numeric" pattern="[0-9]+" value={cleanupStudentId} onChange={(event) => setCleanupStudentId(event.target.value.replace(/\D/g, ""))} placeholder="학번" /><button disabled={!cleanupStudentId || cleanupBusy} onClick={async () => { if (!window.confirm(`${cleanupStudentId} 학번의 남은 가입 계정을 초기화할까요?`)) return; setCleanupBusy(true); const success = await onCleanupAuth(cleanupStudentId); setCleanupBusy(false); if (success) setCleanupStudentId(""); }}>{cleanupBusy ? "처리 중" : "가입 정보 초기화"}</button></div></div>}
+      {session.role === "관리자" && <section className="signup-permission-panel">
+        <header><div><b>회원가입 허용 명단</b><small>여기에 등록한 이름과 학번이 모두 일치해야 회원가입할 수 있어요.</small></div><span>{signupPermissions.filter((item) => !item.usedAt).length}명 가입 가능</span></header>
+        <form onSubmit={async (event) => {
+          event.preventDefault();
+          if (!signupStudentId || !signupName.trim() || signupBusy) return;
+          setSignupBusy(true);
+          const added = await onAddSignupPermission({ studentId: signupStudentId, name: signupName.trim() });
+          setSignupBusy(false);
+          if (added) { setSignupStudentId(""); setSignupName(""); }
+        }}>
+          <input value={signupName} onChange={(event) => setSignupName(event.target.value)} placeholder="이름" aria-label="가입 허용 이름" required />
+          <input value={signupStudentId} onChange={(event) => setSignupStudentId(event.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={10} placeholder="학번" aria-label="가입 허용 학번" required />
+          <button disabled={signupBusy}>{signupBusy ? "추가 중" : "추가"}</button>
+        </form>
+        <div className="signup-permission-list">{signupPermissions.length ? signupPermissions.map((permission) => <div key={permission.studentId} className={permission.usedAt ? "used" : ""}><span><b>{permission.name}</b><small>{permission.studentId}</small></span><em>{permission.usedAt ? "가입 완료" : "가입 가능"}</em><button aria-label={`${permission.name} 가입 허용 삭제`} onClick={async () => { if (!window.confirm(`${permission.name} (${permission.studentId}) 항목을 삭제할까요?`)) return; setSignupBusy(true); await onDeleteSignupPermission(permission); setSignupBusy(false); }}>삭제</button></div>) : <p>가입을 허용한 학번이 없어요.</p>}</div>
+      </section>}
       </> : (
         <div className="team-role-list">
           {teamNames.map((team) => {
@@ -3823,15 +3808,6 @@ function Members({
             );
           })}
         </div>
-      )}
-      {showAdd && (
-        <MemberForm
-          currentTerm={currentTerm}
-          onClose={() => setShowAdd(false)}
-          onSave={(member) => {
-            if (onAddMember(member)) setShowAdd(false);
-          }}
-        />
       )}
       {editingMember && (
         <MemberForm

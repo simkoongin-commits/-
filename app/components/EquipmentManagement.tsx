@@ -13,6 +13,7 @@ import {
   equipmentName,
   equipmentUnavailableReason,
   formatArrowCount,
+  formatGroupedArrowCount,
   groupArrows,
   makeEquipmentId,
   type ArrowEquipment,
@@ -304,7 +305,7 @@ function EquipmentStatDetail({ label, items, onOpen }: { label: string; items: E
   const statArrowGroups = groupArrows(statArrows);
   return <div className="equipment-stat-detail"><header><b>{label} 장비</b><span>{items.length}개</span></header>{items.length ? <div className="equipment-stat-kinds">
     {statBows.length > 0 && <section><h4>활 <small>{statBows.filter(countsTowardInventory).length}개</small></h4><div className="bow-tree">{[...statBowGroups].map(([group, bows]) => { const sample = bows[0]; const counted = bows.filter(countsTowardInventory).length; return bows.length === 1 ? <EquipmentCard key={group} item={sample} compact showBowIndex={false} onClick={() => onOpen(sample)} /> : <details key={group}><summary><span>{sample.pound}lb · {sample.length} · {sample.side}</span><small>총 {counted}개</small></summary><div className="equipment-grid">{bows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>; })}</div></section>}
-    {statArrows.length > 0 && <section><h4>화살 <small>{statArrows.filter(countsTowardInventory).length}개</small></h4><div className="arrow-tree">{[...statArrowGroups].map(([group, indexes]) => { const groupItems = [...indexes.values()].flat(); return <details key={group}><summary><span>{group}</span><small>{formatArrowCount(groupItems.filter(countsTowardInventory).length)}</small></summary><div>{[...indexes].map(([index, arrows]) => <details key={index}><summary><span>{index}</span><span className="arrow-count-labels"><small>{formatArrowCount(arrows.filter(countsTowardInventory).length)}</small>{arrowConditionLabels(arrows).map((condition) => <small className="condition" key={condition}>{condition}</small>)}</span></summary><div className="equipment-grid">{arrows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>)}</div></details>; })}</div></section>}
+    {statArrows.length > 0 && <section><h4>화살 <small>{statArrows.filter(countsTowardInventory).length}개</small></h4><div className="arrow-tree">{[...statArrowGroups].map(([group, indexes]) => { const groupItems = [...indexes.values()].flat(); return <details key={group}><summary><span>{group}</span><small>{formatGroupedArrowCount(groupItems)}</small></summary><div>{[...indexes].map(([index, arrows]) => <details key={index}><summary><span>{index}</span><span className="arrow-count-labels"><small>{formatArrowCount(arrows.filter(countsTowardInventory).length)}</small>{arrowConditionLabels(arrows).map((condition) => <small className="condition" key={condition}>{condition}</small>)}</span></summary><div className="equipment-grid">{arrows.map((item) => <EquipmentCard key={item.id} item={item} onClick={() => onOpen(item)} />)}</div></details>)}</div></details>; })}</div></section>}
   </div> : <p>해당하는 장비가 없어요.</p>}</div>;
 }
 
