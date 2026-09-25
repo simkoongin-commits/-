@@ -17,7 +17,7 @@ export default function EquipmentDetailModal({ item, canManage, onClose, onSaveN
 }) {
   const [note, setNote] = useState(item.note || "");
   const [busy, setBusy] = useState(false);
-  const perform = async (work: () => Promise<void>, success: string, close = false) => {
+  const perform = async (work: () => Promise<void>, success: string, close = true) => {
     if (busy) return;
     setBusy(true);
     try {
@@ -49,8 +49,8 @@ export default function EquipmentDetailModal({ item, canManage, onClose, onSaveN
       {item.holderName && <p>대여: {item.holderName}</p>}
       {canManage ? <label>장비 비고<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="이 장비에 대한 비고를 입력해주세요" /></label> : item.note && <p>{item.note}</p>}
       {canManage && <div className="equipment-modal-actions">
-        <button disabled={busy} onClick={() => void perform(() => onSaveNote(note), "장비 비고를 저장했어요")}>비고 저장</button>
-        {item.status === "available" && !item.manualAvailable && <button disabled={busy} onClick={() => void perform(onLegacyAvailability, "기존 대여 불가능 설정을 해제했어요")}>대여 가능으로 설정</button>}
+        <button disabled={busy} onClick={() => { if (window.confirm("이 장비의 비고를 저장할까요?")) void perform(() => onSaveNote(note), "장비 비고를 저장했어요"); }}>비고 저장</button>
+        {item.status === "available" && !item.manualAvailable && <button disabled={busy} onClick={() => { if (window.confirm("이 장비를 대여 가능으로 설정할까요?")) void perform(onLegacyAvailability, "기존 대여 불가능 설정을 해제했어요"); }}>대여 가능으로 설정</button>}
         {(item.status === "available" || item.status === "rented") && item.manualAvailable && <>
           <button disabled={busy} onClick={() => mark("lost")}>분실</button>
           <button disabled={busy} onClick={() => mark("damaged")}>손상</button>

@@ -80,6 +80,7 @@ export default function EquipmentManagement({
   onReturnRental,
   onRestoreItem,
   onDeleteEquipment,
+  onMarkConditionMany,
   onDeleteEquipmentMany,
   onDeleteRental,
 }: {
@@ -95,6 +96,7 @@ export default function EquipmentManagement({
   onReturnRental: (rentalId: string) => Promise<void>;
   onRestoreItem: (itemId: string, action: "recover" | "repair") => Promise<void>;
   onDeleteEquipment: (itemId: string) => Promise<void>;
+  onMarkConditionMany: (itemIds: string[], condition: "lost") => Promise<void>;
   onDeleteEquipmentMany: (itemIds: string[]) => Promise<void>;
   onDeleteRental: (rentalId: string) => Promise<void>;
 }) {
@@ -244,6 +246,7 @@ export default function EquipmentManagement({
           canManage={canManageEquipment}
           onAdd={(preset) => { setArrowPreset(preset); setAdding("arrow"); }}
           onOpen={openEquipment}
+          onMarkLostMany={(ids) => onMarkConditionMany(ids, "lost")}
           onDeleteMany={onDeleteEquipmentMany}
           notify={notify}
         />}
@@ -325,7 +328,7 @@ function NoteEditor({ notes, setNotes, availableIds, equipment, onAdd }: { notes
 }
 
 function EquipmentForm({ kind, arrows, preset, busy, onClose, onSave }: { kind: "bow" | "arrow"; arrows: ArrowEquipment[]; preset: { lengthWeight?: string; index?: string }; busy: boolean; onClose: () => void; onSave: (draft: EquipmentDraft | EquipmentDraft[]) => void }) {
-  const [pound, setPound] = useState(""); const [length, setLength] = useState(""); const [side, setSide] = useState<"좌궁" | "우궁">("좌궁"); const [note, setNote] = useState("");
+  const [pound, setPound] = useState(""); const [length, setLength] = useState("중"); const [side, setSide] = useState<"좌궁" | "우궁">("우궁"); const [note, setNote] = useState("");
   const [lengthWeight, setLengthWeight] = useState(preset.lengthWeight || ""); const [index, setIndex] = useState(preset.index || ""); const [indexNumbers, setIndexNumbers] = useState<string[]>([]);
   const submit = () => {
     if (kind === "bow") { if (!pound || !length) return; onSave({ kind, pound, length, side, note }); return; }
@@ -336,5 +339,5 @@ function EquipmentForm({ kind, arrows, preset, busy, onClose, onSave }: { kind: 
     if (sameIndex && !window.confirm("같은 인덱스 분류가 이미 있어요. 기존 분류 아래에 추가할까요?")) return;
     onSave(indexNumbers.map((indexNumber) => ({ kind, lengthWeight, index, indexNumber, note })));
   };
-  return <div className="equipment-modal-back"><div className="equipment-modal"><button className="modal-close" onClick={onClose}>×</button><h3>{kind === "bow" ? "활 추가" : "화살 추가"}</h3>{kind === "bow" ? <><label>파운드(lb)<input value={pound} onChange={(e) => setPound(e.target.value)} /></label><label>길이<input value={length} onChange={(e) => setLength(e.target.value)} /></label><label>좌궁/우궁<select value={side} onChange={(e) => setSide(e.target.value as "좌궁" | "우궁")}><option>좌궁</option><option>우궁</option></select></label></> : <><label>길이+무게<input value={lengthWeight} onChange={(e) => setLengthWeight(e.target.value)} placeholder="예: 1913 · 24g" /></label><label>인덱스<input value={index} onChange={(e) => setIndex(e.target.value)} /></label><fieldset className="index-number-picker"><legend>인덱스 넘버 · 복수 선택 가능</legend><div>{["1", "2", "3", "4", "5"].map((number) => <label key={number} className={indexNumbers.includes(number) ? "selected" : ""}><input type="checkbox" checked={indexNumbers.includes(number)} onChange={() => setIndexNumbers((current) => current.includes(number) ? current.filter((item) => item !== number) : [...current, number])} /><span>{number}</span></label>)}</div></fieldset></>}<label>비고<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label><button className="primary" disabled={busy || (kind === "arrow" && !indexNumbers.length)} onClick={submit}>등록</button></div></div>;
+  return <div className="equipment-modal-back"><div className="equipment-modal"><button className="modal-close" onClick={onClose}>×</button><h3>{kind === "bow" ? "활 추가" : "화살 추가"}</h3>{kind === "bow" ? <><label>파운드(lb)<input value={pound} onChange={(e) => setPound(e.target.value)} /></label><label>길이<select value={length} onChange={(e) => setLength(e.target.value)}><option>중</option><option>중장</option><option>장</option><option>장장</option></select></label><label>좌궁/우궁<select value={side} onChange={(e) => setSide(e.target.value as "좌궁" | "우궁")}><option>우궁</option><option>좌궁</option></select></label></> : <><label>길이+무게<input value={lengthWeight} onChange={(e) => setLengthWeight(e.target.value)} placeholder="예: 1913 · 24g" /></label><label>인덱스<input value={index} onChange={(e) => setIndex(e.target.value)} /></label><fieldset className="index-number-picker"><legend>인덱스 넘버 · 복수 선택 가능</legend><div>{["1", "2", "3", "4", "5"].map((number) => <label key={number} className={indexNumbers.includes(number) ? "selected" : ""}><input type="checkbox" checked={indexNumbers.includes(number)} onChange={() => setIndexNumbers((current) => current.includes(number) ? current.filter((item) => item !== number) : [...current, number])} /><span>{number}</span></label>)}</div></fieldset></>}<label>비고<textarea value={note} onChange={(e) => setNote(e.target.value)} /></label><button className="primary" disabled={busy || (kind === "arrow" && !indexNumbers.length)} onClick={submit}>등록</button></div></div>;
 }
