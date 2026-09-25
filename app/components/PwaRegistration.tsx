@@ -36,7 +36,10 @@ export default function PwaRegistration() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     const register = () => {
-      void navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      void navigator.serviceWorker.register("/sw.js", {
+        scope: "/",
+        updateViaCache: "none",
+      });
     };
     if (document.readyState === "complete") register();
     else window.addEventListener("load", register, { once: true });

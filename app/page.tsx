@@ -1165,6 +1165,7 @@ export default function Home() {
   const [currentTerm, setCurrentTerm] = useState("26-2");
   const [ready, setReady] = useState(false);
   const [authUser, setAuthUser] = useState<User | null | undefined>(undefined);
+  const [cloudLoadTimedOut, setCloudLoadTimedOut] = useState(false);
   const [accessError, setAccessError] = useState("");
   const [needsBootstrap, setNeedsBootstrap] = useState(false);
   const [topTab, setTopTab] = useState<"public" | "member">("member");
@@ -1204,10 +1205,22 @@ export default function Home() {
   const appHistoryInitialized = useRef(false);
   const applyingHistory = useRef(false);
   useEffect(() => {
-    return onAuthStateChanged(auth, (user) => {
+    let authResolved = false;
+    const resolveAuth = (user: User | null) => {
+      authResolved = true;
+      setCloudLoadTimedOut(false);
       setAuthUser(user);
       if (user) setAccessError("");
-    });
+    };
+    const unsubscribe = onAuthStateChanged(auth, resolveAuth, () => resolveAuth(null));
+    void auth.authStateReady().then(() => resolveAuth(auth.currentUser)).catch(() => resolveAuth(null));
+    const fallback = window.setTimeout(() => {
+      if (!authResolved) resolveAuth(auth.currentUser);
+    }, 3500);
+    return () => {
+      window.clearTimeout(fallback);
+      unsubscribe();
+    };
   }, []);
   useEffect(() => {
     if (!menuOpen) return;
@@ -1292,9 +1305,14 @@ export default function Home() {
   useEffect(() => {
     if (!authUser) return;
     const clubDoc = doc(db, "clubs", "simgunghoe");
-    return onSnapshot(
+    const loadingFallback = window.setTimeout(() => {
+      setCloudLoadTimedOut(true);
+    }, 10000);
+    const unsubscribe = onSnapshot(
       clubDoc,
       (snapshot) => {
+        window.clearTimeout(loadingFallback);
+        setCloudLoadTimedOut(false);
         if (!snapshot.exists()) {
           void setDoc(clubDoc, {
             practices: seedPractices,
@@ -1439,12 +1457,17 @@ export default function Home() {
         setReady(true);
       },
       () => {
+        window.clearTimeout(loadingFallback);
         setAccessError(
           "공동 일정 데이터를 불러오지 못했어요. 다시 로그인한 뒤 시도해주세요.",
         );
         void signOut(auth);
       },
     );
+    return () => {
+      window.clearTimeout(loadingFallback);
+      unsubscribe();
+    };
   }, [authUser]);
   useEffect(() => {
     if (!ready || !authUser) return;
@@ -1651,7 +1674,20 @@ export default function Home() {
   if (!ready)
     return (
       <main className="login-screen">
-        <p>공동 일정을 불러오고 있어요.</p>
+        {cloudLoadTimedOut ? (
+          <section className="loading-recovery" role="alert">
+            <b>공동 일정을 불러오는 데 시간이 걸리고 있어요.</b>
+            <p>PC 브라우저의 저장된 로그인 정보가 오래됐을 수 있습니다.</p>
+            <button type="button" className="primary" onClick={() => window.location.reload()}>
+              다시 불러오기
+            </button>
+            <button type="button" className="text-button" onClick={() => void signOut(auth)}>
+              로그아웃 후 홍보 페이지 보기
+            </button>
+          </section>
+        ) : (
+          <p>공동 일정을 불러오고 있어요.</p>
+        )}
       </main>
     );
   if (needsBootstrap)

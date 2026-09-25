@@ -1072,6 +1072,22 @@ main {
   color: #b84f2d;
   font-size: 12px;
 }
+.loading-recovery {
+  width: min(360px, calc(100% - 40px));
+  padding: 24px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid #cde5f1;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 15px 40px #1d6f9b1a;
+  color: #245873;
+  text-align: center;
+}
+.loading-recovery b { color: #174d6d; font-size: 16px; }
+.loading-recovery p { margin: 0 0 4px; color: #7892a1; font-size: 12px; line-height: 1.6; }
+.loading-recovery .primary { min-height: 43px; border: 0; border-radius: 10px; background: #167db9; color: #fff; font-weight: 850; }
+.loading-recovery .text-button { border: 0; background: transparent; color: #65889a; font-size: 11px; font-weight: 750; }
 .login-card .text-button {
   width: max-content;
   margin: 0 auto;
