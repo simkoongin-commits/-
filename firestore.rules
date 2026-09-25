@@ -3,7 +3,12 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /clubs/{clubId} {
       // Legacy browser-written 心5시 records are migrated to server-only documents.
-      allow read, write: if request.auth != null && !clubId.matches('^heartFive-.*$');
+      allow read, create: if request.auth != null && !clubId.matches('^heartFive-.*$');
+      // 가입 허용 명단은 Firebase Admin SDK를 사용하는 서버 API만 변경합니다.
+      allow update: if request.auth != null
+        && !clubId.matches('^heartFive-.*$')
+        && request.resource.data.get('signupPermissions', []) == resource.data.get('signupPermissions', []);
+      allow delete: if false;
 
       match /shotRecords/{recordId} {
         allow read, create: if false;

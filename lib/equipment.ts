@@ -51,6 +51,24 @@ export const formatArrowCount = (count: number) => {
   return `${shots}시`;
 };
 
+// A round belongs to one alphabet index only. Partial indexes stay as shots
+// instead of being combined into an artificial round (A4 + B1 !== 1순).
+export const formatGroupedArrowCount = (arrows: ArrowEquipment[]) => {
+  const counts = new Map<string, number>();
+  arrows.filter(countsTowardInventory).forEach((arrow) => {
+    counts.set(arrow.index, (counts.get(arrow.index) || 0) + 1);
+  });
+  let rounds = 0;
+  let shots = 0;
+  counts.forEach((count) => {
+    rounds += Math.floor(count / 5);
+    shots += count % 5;
+  });
+  if (rounds && shots) return `${rounds}순+${shots}시`;
+  if (rounds) return `${rounds}순`;
+  return `${shots}시`;
+};
+
 export const arrowConditionLabels = (arrows: ArrowEquipment[]) => {
   const labelFor = (status: "lost" | "damaged", label: string) => {
     const indexes = arrows

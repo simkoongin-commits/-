@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { arrowConditionLabels, countsTowardInventory, formatArrowCount, groupArrows, type ArrowEquipment } from "@/lib/equipment";
+import { arrowConditionLabels, countsTowardInventory, formatArrowCount, formatGroupedArrowCount, groupArrows, type ArrowEquipment } from "@/lib/equipment";
 import EquipmentCard from "@/app/components/EquipmentCard";
 
 type ArrowPreset = { lengthWeight?: string; index?: string };
@@ -66,7 +66,7 @@ export default function ArrowInventory({ arrows, canManage, onAdd, onOpen, onDel
         groupItems.filter((item) => item.status === "damaged").length ? `손상 ${groupItems.filter((item) => item.status === "damaged").length}개` : "",
       ].filter(Boolean);
       return <details key={lengthWeight}>
-      <summary><span>{lengthWeight}</span><span className="arrow-summary-actions"><span className="arrow-count-labels"><small>{formatArrowCount(groupItems.filter(countsTowardInventory).length)}</small>{conditionCounts.map((label) => <small className="condition" key={label}>{label}</small>)}</span>{canManage && <button onClick={(event) => { event.preventDefault(); onAdd({ lengthWeight }); }}>+</button>}</span></summary>
+      <summary><span>{lengthWeight}</span><span className="arrow-summary-actions"><span className="arrow-count-labels"><small>{formatGroupedArrowCount(groupItems)}</small>{conditionCounts.map((label) => <small className="condition" key={label}>{label}</small>)}</span>{canManage && <button onClick={(event) => { event.preventDefault(); onAdd({ lengthWeight }); }}>+</button>}</span></summary>
       <div>{[...indexes].map(([index, items]) => <details key={index}>
         <summary><span>{index}</span><span className="arrow-summary-actions"><span className="arrow-count-labels"><small>{formatArrowCount(items.filter(countsTowardInventory).length)}</small>{arrowConditionLabels(items).map((label) => <small className="condition" key={label}>{label}</small>)}</span>{canManage && <button onClick={(event) => { event.preventDefault(); onAdd({ lengthWeight, index }); }}>+</button>}</span></summary>
         <div className="equipment-grid">{items.map((item) => <EquipmentCard

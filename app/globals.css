@@ -1902,6 +1902,29 @@ body {
 .orphan-account-cleanup input { min-width: 0; padding: 9px; border: 1px solid #d1e3eb; border-radius: 8px; background: #fff; }
 .orphan-account-cleanup button { padding: 8px 10px; border: 0; border-radius: 8px; background: #3189b5; color: #fff; font-size: 10px; font-weight: 850; }
 .orphan-account-cleanup button:disabled { opacity: .45; }
+.signup-permission-panel { margin-top: 16px; padding: 17px; border: 1px solid #cfe5f1; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px #216f9810; }
+.signup-permission-panel > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.signup-permission-panel > header div { display: grid; gap: 4px; }
+.signup-permission-panel > header b { color: #174f70; font-size: 14px; }
+.signup-permission-panel > header small { color: #7893a2; font-size: 10px; line-height: 1.45; }
+.signup-permission-panel > header > span { flex: none; padding: 5px 8px; border-radius: 999px; background: #e5f5fc; color: #176b96; font-size: 9px; font-weight: 900; }
+.signup-permission-panel form { margin-top: 13px; display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) auto; gap: 7px; }
+.signup-permission-panel input { min-width: 0; padding: 10px; border: 1px solid #d3e5ee; border-radius: 9px; background: #fafdff; color: #245873; font: inherit; }
+.signup-permission-panel form button { padding: 0 13px; border: 0; border-radius: 9px; background: #1982bb; color: #fff; font-weight: 850; }
+.signup-permission-list { margin-top: 12px; display: grid; gap: 6px; }
+.signup-permission-list > div { min-width: 0; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; border-radius: 10px; background: #f2f9fc; }
+.signup-permission-list > div.used { background: #f5f6f6; opacity: .68; }
+.signup-permission-list span { min-width: 0; display: flex; align-items: baseline; gap: 7px; }
+.signup-permission-list b { overflow: hidden; color: #235d7a; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.signup-permission-list small { color: #7a94a2; font-size: 9px; }
+.signup-permission-list em { color: #25825b; font-size: 9px; font-style: normal; font-weight: 900; }
+.signup-permission-list .used em { color: #7e8c92; }
+.signup-permission-list button { padding: 6px 8px; border: 1px solid #e5caca; border-radius: 7px; background: #fff; color: #ae5358; font-size: 9px; font-weight: 850; }
+.signup-permission-list > p { margin: 0; padding: 15px; border-radius: 10px; background: #f3f8fa; color: #8298a3; text-align: center; font-size: 10px; }
+@media (max-width: 430px) {
+  .signup-permission-panel form { grid-template-columns: 1fr 1fr; }
+  .signup-permission-panel form button { min-height: 40px; grid-column: 1 / -1; }
+}
 @media (max-width: 520px) {
   .team-role-card > header { align-items: stretch; flex-direction: column; }
   .team-assign-control select { min-width: 0; flex: 1; max-width: none; }
