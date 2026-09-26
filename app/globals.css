@@ -3139,6 +3139,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .bow-tree > .equipment-card.compact-bow b { font-size: 19px; letter-spacing: -.02em; }
 .bow-tree summary small { color: #718f9f; font-size: 10px; }
 .equipment-group-counts, .arrow-count-labels { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
+.bow-tree summary .equipment-group-counts > small { font-size: 17px; line-height: 1.15; }
 .bow-tree summary small.condition,
 .arrow-tree summary small.condition { background: #fff0ec; color: #bd5a48; }
 .bow-tree .equipment-grid { padding: 0 10px 10px; }
@@ -3180,7 +3181,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .arrow-tree summary { padding: 13px 14px; display: flex; align-items: center; justify-content: space-between; color: #1b668e; cursor: pointer; font-size: 13px; font-weight: 900; }
 .arrow-tree summary small { padding: 3px 7px; border-radius: 999px; background: #e7f5fc; color: #56849c; font-size: 9px; }
 .arrow-tree > details > summary > span:first-child { font-size: 22.1px; line-height: 1.15; }
-.arrow-tree > details > summary .arrow-count-labels > small:first-child { font-size: 15.3px; line-height: 1.15; }
+.arrow-tree .arrow-count-labels > small { font-size: 15.3px; line-height: 1.15; }
 .arrow-summary-actions { display: flex; align-items: center; gap: 6px; }
 .arrow-summary-actions button { width: 25px; height: 25px; padding: 0; border: 0; border-radius: 8px; background: #1984c1; color: #fff; font-size: 17px; font-weight: 900; }
 .arrow-summary-actions { display: flex; align-items: center; gap: 6px; }
