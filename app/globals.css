@@ -3139,6 +3139,7 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .bow-tree > .equipment-card.compact-bow b { font-size: 19px; letter-spacing: -.02em; }
 .bow-tree summary small { color: #718f9f; font-size: 10px; }
 .equipment-group-counts, .arrow-count-labels { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 5px; }
+.bow-tree summary .equipment-group-counts > small { font-size: 17px; line-height: 1.15; }
 .bow-tree summary small.condition,
 .arrow-tree summary small.condition { background: #fff0ec; color: #bd5a48; }
 .bow-tree .equipment-grid { padding: 0 10px 10px; }
