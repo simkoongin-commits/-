@@ -2985,7 +2985,7 @@ export default function Home() {
         <section className="content statistics-locked"><span aria-hidden="true">🔒</span><h2>통계가 잠겨 있어요</h2><p>통계는 신사와 구사 회원만 확인할 수 있어요.</p><button className="primary" onClick={() => setView("cards")}>습사로 돌아가기</button></section>
       )}
       {view === "heartFive" && (
-        <HeartFive places={practicePlaces} isAdmin={session.role === "관리자"} />
+        <HeartFive places={practicePlaces} />
       )}
       {view === "equipment" && (
         <EquipmentManagement

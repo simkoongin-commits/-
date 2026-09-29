@@ -80,9 +80,8 @@ export async function DELETE(request: NextRequest, context: { params: Promise<{ 
       const currentSnapshot = await transaction.get(recordRef);
       const current = currentSnapshot.exists ? parseHeartFiveRecord(recordId, currentSnapshot.data() || {}) : null;
       if (!current) return { error: "기록을 찾을 수 없습니다.", status: 404 };
-      const isAdmin = auth.member!.role === "관리자";
-      if (!isAdmin && current.ownerUid !== auth.uid) return { error: "본인 기록만 삭제할 수 있습니다.", status: 403 };
-      if (!isAdmin && current.date < koreanToday()) return { error: "지난 날짜의 기록은 관리자만 삭제할 수 있습니다.", status: 403 };
+      if (current.ownerUid !== auth.uid) return { error: "본인 기록만 삭제할 수 있습니다.", status: 403 };
+      if (current.date < koreanToday()) return { error: "지난 날짜의 기록은 삭제할 수 없습니다.", status: 403 };
       const wallet = walletReference(auth.adminDb, current.ownerUid);
       const walletSnapshot = await transaction.get(wallet);
       transaction.delete(recordRef);
