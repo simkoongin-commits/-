@@ -1286,6 +1286,7 @@ export default function Home() {
   const [practicePlaces, setPracticePlaces] = useState<string[]>(defaultPracticePlaces);
   const [attendanceOverrides, setAttendanceOverrides] = useState<Record<string, boolean>>({});
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
   const initializedMemberViewFor = useRef("");
@@ -1827,6 +1828,20 @@ export default function Home() {
   const notify = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(""), 1900);
+  };
+  const canViewStatistics = session.grade === "신사" || session.grade === "구사";
+  const isMoreView = (["calendar", "members", "statistics", "equipment"] as MemberView[]).includes(view);
+  const persistHallOfFame = (nextHall: HallOfFame) => {
+    const normalized = normalizeHall(nextHall);
+    setHallOfFame(normalized);
+    void setDoc(
+      doc(db, "clubs", "simgunghoe"),
+      { hallOfFame: normalized },
+      { merge: true },
+    ).catch(() => {
+      cloudState.current = "";
+      notify("명예의 전당을 저장하지 못했어요. 다시 시도해주세요");
+    });
   };
   const requestAccountDeletion = async (studentId: string, orphanOnly = false, mode: "delete" | "withdraw" = "delete", withdrawnTerm?: string) => {
     const token = await auth.currentUser?.getIdToken();
@@ -2522,7 +2537,7 @@ export default function Home() {
           </small>
         </button>
       </section>
-      {menuOpen && <button className="menu-scrim" aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />}
+      {menuOpen && <button className="menu-scrim" aria-label="메뉴 닫기" onClick={() => { setMenuOpen(false); setMoreMenuOpen(false); }} />}
       <button className={menuOpen ? "menu-toggle open" : "menu-toggle"} aria-label="메뉴 펼치기" onClick={() => setMenuOpen((open) => !open)}>☰</button>
       <nav className={menuOpen ? "tabs expanded" : "tabs"} aria-label="회원 메뉴">
         {menuOpen && <div className="drawer-head"><b>심궁<em>회</em></b><span>원하는 메뉴를 선택해주세요</span></div>}
@@ -2535,27 +2550,26 @@ export default function Home() {
         <button className={view === "heartFive" ? "active" : ""} onClick={() => { setView("heartFive"); setMenuOpen(false); }}>
           <span>◎</span>心五시 心五중
         </button>
-        <button
-          className={view === "calendar" ? "active" : ""}
-          onClick={() => { setView("calendar"); setMenuOpen(false); }}
-        >
-          <span>▦</span>달력
-        </button>
-        <button
-          className={view === "members" ? "active" : ""}
-          onClick={() => { setView("members"); setMenuOpen(false); }}
-        >
-          <span>♙</span>회원
-        </button>
         <button className={view === "hall" ? "active" : ""} onClick={() => { setView("hall"); setMenuOpen(false); }}>
           <span>♛</span>명예의 전당
         </button>
-        <button className={view === "statistics" ? "active" : ""} aria-disabled={session.grade === "예비신사"} onClick={() => { if (session.grade === "예비신사") { notify("통계는 신사와 구사만 볼 수 있어요"); return; } setView("statistics"); setMenuOpen(false); }}>
-          <span>▥</span>{session.grade === "예비신사" ? "🔒 통계" : "통계"}
-        </button>
-        <button className={view === "equipment" ? "active" : ""} onClick={() => { setView("equipment"); setMenuOpen(false); }}>
-          <span>⌁</span>장비 관리
-        </button>
+        <div className="more-menu">
+          <button
+            className={isMoreView ? "active more-trigger" : "more-trigger"}
+            aria-expanded={moreMenuOpen}
+            onClick={() => setMoreMenuOpen((open) => !open)}
+          >
+            <span>•••</span>더보기<i aria-hidden="true">{moreMenuOpen ? "⌃" : "⌄"}</i>
+          </button>
+          {moreMenuOpen && (
+            <div className="more-submenu">
+              <button className={view === "calendar" ? "active" : ""} onClick={() => { setView("calendar"); setMenuOpen(false); setMoreMenuOpen(false); }}><span>▦</span>달력</button>
+              <button className={view === "members" ? "active" : ""} onClick={() => { setView("members"); setMenuOpen(false); setMoreMenuOpen(false); }}><span>♙</span>회원</button>
+              <button className={view === "statistics" ? "active" : ""} aria-disabled={!canViewStatistics} onClick={() => { if (!canViewStatistics) { notify("통계는 신사와 구사만 볼 수 있어요"); return; } setView("statistics"); setMenuOpen(false); setMoreMenuOpen(false); }}><span>▥</span>{canViewStatistics ? "통계" : "🔒 통계"}</button>
+              <button className={view === "equipment" ? "active" : ""} onClick={() => { setView("equipment"); setMenuOpen(false); setMoreMenuOpen(false); }}><span>⌁</span>장비 관리</button>
+            </div>
+          )}
+        </div>
       </nav>
       {view === "cards" && (
         <section className="content">
@@ -2955,10 +2969,10 @@ export default function Home() {
           hall={hallOfFame}
           members={clubMembers}
           editable={session.role === "관리자"}
-          onChange={(next) => setHallOfFame(normalizeHall(next))}
+          onChange={persistHallOfFame}
         />
       )}
-      {view === "statistics" && session.grade !== "예비신사" && (
+      {view === "statistics" && canViewStatistics && (
         <Statistics
           members={clubMembers}
           currentTerm={currentTerm}
@@ -2967,7 +2981,7 @@ export default function Home() {
           hall={hallOfFame}
         />
       )}
-      {view === "statistics" && session.grade === "예비신사" && (
+      {view === "statistics" && !canViewStatistics && (
         <section className="content statistics-locked"><span aria-hidden="true">🔒</span><h2>통계가 잠겨 있어요</h2><p>통계는 신사와 구사 회원만 확인할 수 있어요.</p><button className="primary" onClick={() => setView("cards")}>습사로 돌아가기</button></section>
       )}
       {view === "heartFive" && (
@@ -3057,6 +3071,7 @@ export default function Home() {
       )}
       {(showForm || editing) && (
         <PracticeForm
+          key={editing ? `edit-${editing.id}` : "new-practice"}
           initial={editing || undefined}
           nextRegularRound={nextRegularRound}
           places={practicePlaces}
@@ -3067,22 +3082,30 @@ export default function Home() {
             setEditing(null);
           }}
           onSave={(p) => {
+            let nextPractices: Practice[];
             if (editing) {
-              setPractices((v) =>
-                v.map((item) =>
+              nextPractices = practices.map((item) =>
                   item.id === editing.id
                     ? { ...item, ...p, updated: ["습사 정보가 수정되었습니다"] }
                     : item,
-                ),
               );
               notify("습사 내용을 수정했어요");
             } else {
-              setPractices((v) => [
-                ...v,
+              nextPractices = [
+                ...practices,
                 { ...p, id: Date.now(), applicants: [], applicantIds: [], attendeeIds: [], attendanceTracking: true, createdBy: session.id },
-              ]);
+              ];
               notify("새 습사를 등록했어요");
             }
+            setPractices(nextPractices);
+            void setDoc(
+              doc(db, "clubs", "simgunghoe"),
+              { practices: nextPractices },
+              { merge: true },
+            ).catch(() => {
+              cloudState.current = "";
+              notify("습사 일정을 저장하지 못했어요. 다시 시도해주세요");
+            });
             setShowForm(false);
             setEditing(null);
           }}
