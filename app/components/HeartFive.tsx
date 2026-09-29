@@ -130,7 +130,7 @@ function ShotSummary({ shots }: { shots: readonly ShotMark[] }) {
   </div>;
 }
 
-export default function HeartFive({ places, isAdmin }: { places: string[]; isAdmin: boolean }) {
+export default function HeartFive({ places }: { places: string[] }) {
   const [cached] = useState(() => readRecordCache());
   const cachedDraft = cached.records.find((record) => record.own && !record.finalized && record.shots);
   const [tab, setTab] = useState<"records" | "statistics">("records");
@@ -153,11 +153,21 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const saveVersion = useRef(0);
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const messageTimer = useRef<number | null>(null);
   const editorActive = useRef(Boolean(cachedDraft));
   const captureRefs = useRef(new Map<string, HTMLDivElement>());
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const [imageSavedId, setImageSavedId] = useState<string | null>(null);
+
+  const showTimedMessage = (nextMessage: string, duration = 3000) => {
+    if (messageTimer.current !== null) window.clearTimeout(messageTimer.current);
+    setMessage(nextMessage);
+    messageTimer.current = window.setTimeout(() => {
+      setMessage("");
+      messageTimer.current = null;
+    }, duration);
+  };
 
   const refresh = useCallback(async () => {
     try {
@@ -190,7 +200,12 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
     const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onVisible);
-    return () => { window.clearTimeout(initial); document.removeEventListener("visibilitychange", onVisible); window.removeEventListener("focus", onVisible); };
+    return () => {
+      window.clearTimeout(initial);
+      if (messageTimer.current !== null) window.clearTimeout(messageTimer.current);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
   }, [refresh]);
 
   const mine = useMemo(() => records.filter((record) => record.own && record.finalized).sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt)), [records]);
@@ -307,7 +322,7 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
       setExpandedId(record.id);
       await refresh();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "열람에 실패했습니다.");
+      showTimedMessage(error instanceof Error ? error.message : "열람에 실패했습니다.");
     }
   };
 
@@ -364,10 +379,10 @@ export default function HeartFive({ places, isAdmin }: { places: string[]; isAdm
     const expanded = expandedId === record.id;
     const editingInline = inlineEditingId === record.id;
     const editable = record.own && record.date >= koreanToday();
-    const deletable = editable || isAdmin;
+    const deletable = editable;
     return <article className={`heart-card ${record.mode === "근사" ? "heart-card-near" : ""}`} key={record.id}>
       <button type="button" className="heart-card-main" onClick={() => record.unlocked ? setExpandedId(expanded ? null : record.id) : void unlockRecord(record)} aria-expanded={record.unlocked && expanded}>
-        <strong>{record.unlocked ? `${record.memberName} · ${record.date}` : record.memberName}</strong><span>{record.place}</span>
+        <strong>{record.memberName}</strong><span>{record.date}</span><span>{record.place}</span>
         {record.stats ? <><span>최고 {record.stats.best}中</span><span>총시수 {record.stats.hits}중/{record.stats.rounds}순({record.stats.rounds * 5}시)</span>{record.stats.shotCount % 5 !== 0 && <span>입력 중 {record.stats.shotCount % 5}/5시</span>}</> : <span>시수 {record.hits}中</span>}
         <b className={!record.unlocked ? "heart-locked" : ""}>{record.unlocked ? expanded ? "⌃" : "⌄" : "🔒 1P 열람"}</b>
       </button>
