@@ -39,11 +39,6 @@ export function isCompleteRecord(shots: readonly ShotMark[]): boolean {
   return shots.length > 0 && shots.length % 5 === 0 && shots.every(isShotMark);
 }
 
-export const hasCompletedRound = (shots: readonly ShotMark[]): boolean => shots.length >= 5;
-
-export const newlyEarnedPoints = (previouslyRewarded: boolean, shots: readonly ShotMark[]): 0 | 2 =>
-  !previouslyRewarded && hasCompletedRound(shots) ? 2 : 0;
-
 export function compareHeartFiveRecords(a: HeartFiveRecord, b: HeartFiveRecord): number {
   const first = recordStats(a.shots);
   const second = recordStats(b.shots);

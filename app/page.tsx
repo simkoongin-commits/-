@@ -1242,6 +1242,7 @@ export default function Home() {
   const [editing, setEditing] = useState<Practice | null>(null);
   const [participantPracticeId, setParticipantPracticeId] = useState<number | null>(null);
   const [cancelTarget, setCancelTarget] = useState<number | null>(null);
+  const [participationPendingId, setParticipationPendingId] = useState<number | null>(null);
   const [cardMenu, setCardMenu] = useState<number | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [copyFormats, setCopyFormats] =
@@ -2216,30 +2217,46 @@ export default function Home() {
     await navigator.clipboard.writeText(text);
     notify(message);
   };
-  const toggleJoin = (id: number) => {
+  const toggleJoin = async (id: number) => {
     const practice = practices.find((item) => item.id === id);
-    if (practice?.applicants.includes(session.name)) {
+    const alreadyJoined = practice?.applicantIds?.includes(session.id) || practice?.applicants.includes(session.name);
+    if (alreadyJoined) {
       setCancelTarget(id);
       return;
     }
-    if (
-      practice &&
-      practice.capacity > 0 &&
-      practice.applicants.length >= practice.capacity
-    ) {
-      notify("정원이 모두 찼어요");
-      return;
+    if (!practice || participationPendingId !== null) return;
+    setParticipationPendingId(id);
+    try {
+      let committedPractice: Practice | null = null;
+      await runTransaction(db, async (transaction) => {
+        const clubRef = doc(db, "clubs", "simgunghoe");
+        const snapshot = await transaction.get(clubRef);
+        if (!snapshot.exists()) throw new Error("습사 정보를 불러오지 못했어요.");
+        const current = Array.isArray(snapshot.data().practices) ? snapshot.data().practices as Practice[] : [];
+        const target = current.find((item) => item.id === id);
+        if (!target) throw new Error("이미 정리된 습사예요.");
+        const applicantIds = new Set(target.applicantIds || []);
+        const joined = applicantIds.has(session.id) || target.applicants.includes(session.name);
+        if (!joined && target.capacity > 0 && target.applicants.length >= target.capacity) throw new Error("정원이 모두 찼어요");
+        committedPractice = joined ? target : {
+          ...target,
+          applicants: [...target.applicants, session.name],
+          applicantIds: [...applicantIds, session.id],
+        };
+        transaction.set(clubRef, {
+          practices: current.map((item) => item.id === id ? committedPractice : item),
+        }, { merge: true });
+      });
+      if (committedPractice) {
+        const savedPractice = committedPractice as Practice;
+        setPractices((current) => current.map((item) => item.id === id ? savedPractice : item));
+      }
+      notify("참가 신청했어요");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "참가 신청을 저장하지 못했어요.");
+    } finally {
+      setParticipationPendingId(null);
     }
-    setPractices((all) =>
-      all.map((p) =>
-        p.id === id ? {
-          ...p,
-          applicants: [...p.applicants, session.name],
-          applicantIds: Array.from(new Set([...(p.applicantIds || []), session.id])),
-        } : p,
-      ),
-    );
-    notify("참가 신청했어요");
   };
   const toggleAttendance = async (practiceId: number, memberId: string) => {
     if (!(session.role === "관리자" || session.grade === "신사" || session.grade === "구사")) {
@@ -2290,22 +2307,41 @@ export default function Home() {
       });
     }
   };
-  const confirmCancellation = () => {
+  const confirmCancellation = async () => {
     if (cancelTarget === null) return;
-    setPractices((all) =>
-      all.map((p) =>
-        p.id === cancelTarget
-          ? {
-              ...p,
-              applicants: p.applicants.filter((name) => name !== session.name),
-              applicantIds: (p.applicantIds || []).filter((id) => id !== session.id),
-              attendeeIds: (p.attendeeIds || []).filter((id) => id !== session.id),
-            }
-          : p,
-      ),
-    );
-    setCancelTarget(null);
-    notify("신청을 취소했어요");
+    const practiceId = cancelTarget;
+    if (participationPendingId !== null) return;
+    setParticipationPendingId(practiceId);
+    try {
+      let committedPractice: Practice | null = null;
+      await runTransaction(db, async (transaction) => {
+        const clubRef = doc(db, "clubs", "simgunghoe");
+        const snapshot = await transaction.get(clubRef);
+        if (!snapshot.exists()) throw new Error("습사 정보를 불러오지 못했어요.");
+        const current = Array.isArray(snapshot.data().practices) ? snapshot.data().practices as Practice[] : [];
+        const target = current.find((item) => item.id === practiceId);
+        if (!target) throw new Error("이미 정리된 습사예요.");
+        committedPractice = {
+          ...target,
+          applicants: target.applicants.filter((name) => name !== session.name),
+          applicantIds: (target.applicantIds || []).filter((memberId) => memberId !== session.id),
+          attendeeIds: (target.attendeeIds || []).filter((memberId) => memberId !== session.id),
+        };
+        transaction.set(clubRef, {
+          practices: current.map((item) => item.id === practiceId ? committedPractice : item),
+        }, { merge: true });
+      });
+      if (committedPractice) {
+        const savedPractice = committedPractice as Practice;
+        setPractices((current) => current.map((item) => item.id === practiceId ? savedPractice : item));
+      }
+      setCancelTarget(null);
+      notify("신청을 취소했어요");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "신청 취소를 저장하지 못했어요.");
+    } finally {
+      setParticipationPendingId(null);
+    }
   };
   if (topTab === "public")
     return (
@@ -2625,7 +2661,7 @@ export default function Home() {
           <div className="cards">
             {visible.map((p) => {
               const past = new Date(`${p.date}T${p.end || "23:59"}`) < today;
-              const joined = p.applicants.includes(session.name);
+              const joined = p.applicantIds?.includes(session.id) || p.applicants.includes(session.name);
               return (
                 <article
                   id={`practice-${p.id}`}
@@ -2781,10 +2817,10 @@ export default function Home() {
                     </button>
                     <button
                       className={joined ? "joined" : "join"}
-                      disabled={past}
-                      onClick={() => toggleJoin(p.id)}
+                      disabled={past || participationPendingId === p.id}
+                      onClick={() => void toggleJoin(p.id)}
                     >
-                      {past ? "종료됨" : joined ? "신청 취소" : "참가 신청"}
+                      {past ? "종료됨" : participationPendingId === p.id ? "처리 중…" : joined ? "신청 취소" : "참가 신청"}
                     </button>
                   </div>
                 </article>
@@ -3026,8 +3062,8 @@ export default function Home() {
             <p>정말 취소하시겠어요? 😢</p>
             <div className="modal-actions">
               <button onClick={() => setCancelTarget(null)}>아니오</button>
-              <button className="primary" onClick={confirmCancellation}>
-                네
+              <button className="primary" disabled={participationPendingId === cancelTarget} onClick={() => void confirmCancellation()}>
+                {participationPendingId === cancelTarget ? "처리 중…" : "네"}
               </button>
             </div>
           </section>

@@ -2,10 +2,6 @@ import type { Firestore } from "firebase-admin/firestore";
 import { parseHeartFiveRecord } from "@/lib/heartFive";
 
 export const recordCollection = (db: Firestore) => db.collection("heartFiveRecords");
-export const walletReference = (db: Firestore, uid: string) => db.collection("heartFiveWallets").doc(uid);
-
-export const walletPoints = (value: unknown): number =>
-  typeof value === "number" && Number.isInteger(value) ? value : 0;
 
 /** Move records written by the earlier browser-only implementation behind server-only access. */
 export async function migrateLegacyHeartFiveRecords(db: Firestore): Promise<void> {
@@ -20,14 +16,12 @@ export async function migrateLegacyHeartFiveRecords(db: Firestore): Promise<void
     if (!parsed) continue;
     const targetId = old.ref.parent.id === "shotRecords" ? `heartFive-${old.id}` : old.id;
     const target = recordCollection(db).doc(targetId);
-    const wallet = walletReference(db, parsed.ownerUid);
     await db.runTransaction(async (transaction) => {
-      const [source, destination, balance] = await Promise.all([
-        transaction.get(old.ref), transaction.get(target), transaction.get(wallet),
+      const [source, destination] = await Promise.all([
+        transaction.get(old.ref), transaction.get(target),
       ]);
       if (!source.exists) return;
       if (!destination.exists) {
-        const rewarded = parsed.shots.length >= 5;
         transaction.set(target, {
           ownerUid: parsed.ownerUid,
           memberId: parsed.memberId,
@@ -38,9 +32,7 @@ export async function migrateLegacyHeartFiveRecords(db: Firestore): Promise<void
           finalized: true,
           createdAt: parsed.createdAt,
           shots: parsed.shots,
-          rewarded,
         });
-        if (rewarded) transaction.set(wallet, { points: walletPoints(balance.data()?.points) + 2 }, { merge: true });
       }
       transaction.delete(old.ref);
     });

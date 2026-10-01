@@ -3423,7 +3423,6 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-mode-tabs button.active { border-color: #58aeda; background: #e3f4fc; color: #126b9b; }
 .heart-mode-tabs button:last-child.active { border-color: #7ec49c; background: #e8f7ed; color: #297246; }
 .heart-save-button { margin-left: auto; }
-.heart-points { flex: none; padding: 8px 12px; border: 1px solid #b9dceb; border-radius: 12px; background: #e7f7fe; color: #116c9e; font-size: 14px; font-weight: 900; }
 .heart-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
 .heart-header-actions button { padding: 8px 10px; border: 1px solid #c7dfeb; border-radius: 10px; background: #fff; color: #517d93; font-size: 11px; font-weight: 800; }
 .heart-stat-tabs { margin-top: 0; }
@@ -3486,7 +3485,6 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .heart-card-actions button { padding: 8px 12px; border: 1px solid #b9d9e8; border-radius: 9px; background: #eef8fc; color: #22749d; font-weight: 800; }
 .heart-card-actions button.danger-button { border-color: #eccac7; background: #fff1f0; color: #ad5753; }
 .heart-image-saved { align-self: center; color: #328452; font-size: 11px; font-weight: 800; }
-.heart-locked { color: #297ea7; font-weight: 800; }
 .heart-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 9px; margin: 0 0 17px; }
 .heart-filters select { min-width: 140px; }
 .heart-picker-backdrop { position: fixed; z-index: 180; inset: 0; display: grid; place-items: center; padding: 20px; background: #12334f91; }
