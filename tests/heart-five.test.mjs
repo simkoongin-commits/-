@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareHeartFiveRecords, hasCompletedRound, isCompleteRecord, koreanToday, newlyEarnedPoints, parseHeartFiveRecord, recordStats } from "../lib/heartFive.ts";
+import { compareHeartFiveRecords, isCompleteRecord, koreanToday, parseHeartFiveRecord, recordStats } from "../lib/heartFive.ts";
 
 test("five shots complete one round and total scores count only hits", () => {
   const shots = ["中", "↗", "中", "↓", "中", "→", "中", "中", "中", "中"];
@@ -28,7 +28,6 @@ test("partial next round is kept but excluded from completed-round statistics", 
     shotCount: 6,
     average: 3,
   });
-  assert.equal(hasCompletedRound(["中", "中", "中", "中", "中", "↗"]), true);
 });
 
 test("saved record parsing rejects malformed data", () => {
@@ -49,14 +48,6 @@ test("same-date records sort by highest round and then total hits", () => {
     { ...base, id: "newer", date: "2026-09-23", shots: ["↗", "↗", "↗", "↗", "↗"] },
   ];
   assert.deepEqual(records.sort(compareHeartFiveRecords).map((record) => record.id), ["newer", "best", "many", "fewer"]);
-});
-
-test("one record earns two points only on its first completed round", () => {
-  const fourShots = ["中", "中", "中", "中"];
-  const fiveShots = [...fourShots, "中"];
-  assert.equal(newlyEarnedPoints(false, fourShots), 0);
-  assert.equal(newlyEarnedPoints(false, fiveShots), 2);
-  assert.equal(newlyEarnedPoints(true, [...fiveShots, "↗"]), 0);
 });
 
 test("record locking uses a Korean calendar date", () => {

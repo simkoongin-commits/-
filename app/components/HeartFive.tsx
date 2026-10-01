@@ -23,18 +23,17 @@ type RecordItem = {
   hits: number;
   createdAt: string;
   own: boolean;
-  unlocked: boolean;
   completed: boolean;
   shots: ShotMark[] | null;
   stats: RecordStats | null;
 };
 
-const recordCacheKey = "simkoong-heart-five-v2";
-const readRecordCache = (): { records: RecordItem[]; points: number } => {
-  if (typeof window === "undefined") return { records: [], points: 0 };
+const recordCacheKey = "simkoong-heart-five-v3";
+const readRecordCache = (): { records: RecordItem[] } => {
+  if (typeof window === "undefined") return { records: [] };
   try {
-    const cached = JSON.parse(window.localStorage.getItem(recordCacheKey) || "null") as { uid?: string; records?: RecordItem[]; points?: number } | null;
-    if (!cached || cached.uid !== auth.currentUser?.uid || !Array.isArray(cached.records)) return { records: [], points: 0 };
+    const cached = JSON.parse(window.localStorage.getItem(recordCacheKey) || "null") as { uid?: string; records?: RecordItem[] } | null;
+    if (!cached || cached.uid !== auth.currentUser?.uid || !Array.isArray(cached.records)) return { records: [] };
     return {
       records: cached.records.map((record) => ({
         ...record,
@@ -42,9 +41,8 @@ const readRecordCache = (): { records: RecordItem[]; points: number } => {
         finalized: record.finalized !== false,
         hits: typeof record.hits === "number" ? record.hits : record.stats?.hits || 0,
       })),
-      points: typeof cached.points === "number" ? cached.points : 0,
     };
-  } catch { return { records: [], points: 0 }; }
+  } catch { return { records: [] }; }
 };
 
 async function recordRequest(path: string, options: RequestInit = {}) {
@@ -137,7 +135,6 @@ export default function HeartFive({ places }: { places: string[] }) {
   const [statisticsTab, setStatisticsTab] = useState<"members" | "dates">("members");
   const [modeFilter, setModeFilter] = useState<PracticeMode>("원사");
   const [records, setRecords] = useState<RecordItem[]>(cached.records);
-  const [points, setPoints] = useState(cached.points);
   const [loading, setLoading] = useState(cached.records.length === 0);
   const [message, setMessage] = useState("");
   const [adding, setAdding] = useState(Boolean(cachedDraft));
@@ -153,29 +150,18 @@ export default function HeartFive({ places }: { places: string[] }) {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const saveVersion = useRef(0);
   const saveQueue = useRef<Promise<unknown>>(Promise.resolve());
-  const messageTimer = useRef<number | null>(null);
   const editorActive = useRef(Boolean(cachedDraft));
   const captureRefs = useRef(new Map<string, HTMLDivElement>());
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const [imageSavedId, setImageSavedId] = useState<string | null>(null);
 
-  const showTimedMessage = (nextMessage: string, duration = 3000) => {
-    if (messageTimer.current !== null) window.clearTimeout(messageTimer.current);
-    setMessage(nextMessage);
-    messageTimer.current = window.setTimeout(() => {
-      setMessage("");
-      messageTimer.current = null;
-    }, duration);
-  };
-
   const refresh = useCallback(async () => {
     try {
-      const result = await recordRequest("/api/heart-five") as { records?: RecordItem[]; points?: number };
+      const result = await recordRequest("/api/heart-five") as { records?: RecordItem[] };
       const nextRecords = Array.isArray(result.records) ? result.records : [];
       setRecords(nextRecords);
-      setPoints(typeof result.points === "number" ? result.points : 0);
-      window.localStorage.setItem(recordCacheKey, JSON.stringify({ uid: auth.currentUser?.uid, records: result.records || [], points: result.points || 0 }));
+      window.localStorage.setItem(recordCacheKey, JSON.stringify({ uid: auth.currentUser?.uid, records: result.records || [] }));
       const draft = nextRecords.find((record) => record.own && !record.finalized && record.shots);
       if (draft?.shots && !editorActive.current) {
         editorActive.current = true;
@@ -193,7 +179,7 @@ export default function HeartFive({ places }: { places: string[] }) {
     } finally {
       setLoading(false);
     }
-  }, [setAdding, setDate, setEditMode, setLoading, setMessage, setMode, setPlace, setPoints, setRecordId, setRecords]);
+  }, [setAdding, setDate, setEditMode, setLoading, setMessage, setMode, setPlace, setRecordId, setRecords]);
 
   useEffect(() => {
     const initial = window.setTimeout(() => void refresh(), 0);
@@ -202,7 +188,6 @@ export default function HeartFive({ places }: { places: string[] }) {
     window.addEventListener("focus", onVisible);
     return () => {
       window.clearTimeout(initial);
-      if (messageTimer.current !== null) window.clearTimeout(messageTimer.current);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
@@ -316,16 +301,6 @@ export default function HeartFive({ places }: { places: string[] }) {
     }
   };
 
-  const unlockRecord = async (record: RecordItem) => {
-    try {
-      await recordRequest("/api/heart-five/unlock", { method: "POST", body: JSON.stringify({ recordId: record.id }) });
-      setExpandedId(record.id);
-      await refresh();
-    } catch (error) {
-      showTimedMessage(error instanceof Error ? error.message : "열람에 실패했습니다.");
-    }
-  };
-
   const saveImage = async (record: RecordItem) => {
     try {
       await saveQueue.current.catch(() => undefined);
@@ -381,10 +356,10 @@ export default function HeartFive({ places }: { places: string[] }) {
     const editable = record.own && record.date >= koreanToday();
     const deletable = editable;
     return <article className={`heart-card ${record.mode === "근사" ? "heart-card-near" : ""}`} key={record.id}>
-      <button type="button" className="heart-card-main" onClick={() => record.unlocked ? setExpandedId(expanded ? null : record.id) : void unlockRecord(record)} aria-expanded={record.unlocked && expanded}>
+      <button type="button" className="heart-card-main" onClick={() => setExpandedId(expanded ? null : record.id)} aria-expanded={expanded}>
         <strong>{record.memberName}</strong><span>{record.date}</span><span>{record.place}</span>
         {record.stats ? <><span>최고 {record.stats.best}中</span><span>총시수 {record.stats.hits}중/{record.stats.rounds}순({record.stats.rounds * 5}시)</span>{record.stats.shotCount % 5 !== 0 && <span>입력 중 {record.stats.shotCount % 5}/5시</span>}</> : <span>시수 {record.hits}中</span>}
-        <b className={!record.unlocked ? "heart-locked" : ""}>{record.unlocked ? expanded ? "⌃" : "⌄" : "🔒 1P 열람"}</b>
+        <b>{expanded ? "⌃" : "⌄"}</b>
       </button>
       {expanded && record.shots && <div className="heart-card-detail">
         {editingInline ? <div className="heart-inline-editor">
@@ -400,12 +375,11 @@ export default function HeartFive({ places }: { places: string[] }) {
           <div className="heart-card-actions"><button type="button" onClick={() => void saveImage(record)}>{imageSavedId === record.id ? "저장됐어요" : "이미지 저장"}</button>{imageSavedId === record.id && <span role="status" className="heart-image-saved">이미지가 저장됐어요.</span>}{editable && <button type="button" onClick={() => openRecord(record)}>수정</button>}{deletable && <button type="button" className="danger-button" onClick={() => void deleteRecord(record)}>삭제</button>}</div>
         </>}
       </div>}
-      {!record.unlocked && deletable && <div className="heart-card-actions"><button type="button" className="danger-button" onClick={() => void deleteRecord(record)}>삭제</button></div>}
     </article>;
   };
 
   return <section className="content heart-five">
-    <div className="section-head"><div><h2>心五시 心五중</h2><p>다섯 발씩 기록하고, 한 순의 흐름을 살펴보세요.</p></div><div className="heart-header-actions"><span className="heart-points">보유 {points}P</span><button type="button" onClick={() => void refresh()}>새로고침</button></div></div>
+    <div className="section-head"><div><h2>心五시 心五중</h2><p>다섯 발씩 기록하고, 한 순의 흐름을 살펴보세요.</p></div><div className="heart-header-actions"><button type="button" onClick={() => void refresh()}>새로고침</button></div></div>
     <div className="heart-tabs" role="tablist" aria-label="心五시 心五중 메뉴">
       <button type="button" role="tab" aria-selected={tab === "records"} className={tab === "records" ? "active" : ""} onClick={() => setTab("records")}>습사 기록</button>
       <button type="button" role="tab" aria-selected={tab === "statistics"} className={tab === "statistics" ? "active" : ""} onClick={() => setTab("statistics")}>습사 통계</button>
