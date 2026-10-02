@@ -17,10 +17,12 @@ type PromoHomeProps = {
 const sceneNames = ["intro", "practice", "community"] as const;
 
 export default function PromoHome({ scenes, onAsk }: PromoHomeProps) {
+  const storyScenes = scenes.slice(0, 3);
+  const finalScene = scenes[3];
   return (
     <section id="top" className="promo-home">
       <div className="promo-story-thread" aria-hidden="true" />
-      {scenes.map((scene, index) => {
+      {storyScenes.map((scene, index) => {
         const sceneName = sceneNames[index] || "chapter";
         return (
           <article
@@ -65,17 +67,23 @@ export default function PromoHome({ scenes, onAsk }: PromoHomeProps) {
           </article>
         );
       })}
-      <article className="promo-story-cta">
+      <article className={`promo-story-cta ${finalScene?.theme || "ink"} ${finalScene?.image ? "has-photo" : ""}`}>
+        {finalScene?.image && (
+          <div className="promo-cta-media" aria-hidden="true">
+            <Image src={finalScene.image} alt="" fill sizes="100vw" unoptimized />
+          </div>
+        )}
         <div className="promo-cta-target" aria-hidden="true">
           <span />
         </div>
         <div className="promo-cta-content">
-          <p>SIMKOONG ARCHERY CLUB</p>
+          <p>{finalScene?.eyebrow || "SIMKOONG ARCHERY CLUB"}</p>
           <h2>
-            우리의 다음 화살은
-            <br />
-            당신과 함께.
+            {(finalScene?.title || "우리의 다음 화살은\n당신과 함께.").split("\n").map((line, index) => (
+              <span key={`${finalScene?.id || "final"}-${index}`}>{line}</span>
+            ))}
           </h2>
+          {finalScene?.body && <p className="promo-cta-description">{finalScene.body}</p>}
           <button onClick={onAsk}>
             <span>궁금한 점 물어보기</span>
             <i aria-hidden="true">→</i>
