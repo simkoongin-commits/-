@@ -253,7 +253,19 @@ const defaultPromoScenes: PromoScene[] = [
     body: "자유 습사, 대회, 그리고 함께 나누는 일상까지. 심궁회의 이야기를 만나보세요.",
     theme: "ink",
   },
+  {
+    id: "together",
+    eyebrow: "SIMKOONG ARCHERY CLUB",
+    title: "우리의 다음 화살은\n당신과 함께.",
+    body: "심궁회가 궁금하다면 언제든 편하게 질문을 남겨주세요.",
+    theme: "ink",
+  },
 ];
+const normalizePromoScenes = (scenes?: PromoScene[]) =>
+  defaultPromoScenes.map((fallback, index) => {
+    const stored = scenes?.[index];
+    return stored ? { ...fallback, ...stored } : { ...fallback };
+  });
 const defaultPublicPosts: PublicPost[] = [
   {
     id: "welcome-post",
@@ -639,7 +651,7 @@ function PublicPortal({
   });
   const [editingHome, setEditingHome] = useState(false);
   const [sceneDrafts, setSceneDrafts] = useState<PromoScene[]>(
-    scenes || defaultPromoScenes,
+    normalizePromoScenes(scenes),
   );
   const [sceneFiles, setSceneFiles] = useState<Record<string, File>>({});
   const [savingHome, setSavingHome] = useState(false);
@@ -661,7 +673,7 @@ function PublicPortal({
   const waitingQuestions = (questions || []).filter(
     (item) => item.status === "waiting",
   );
-  const shownScenes = scenes?.length ? scenes : defaultPromoScenes;
+  const shownScenes = normalizePromoScenes(scenes);
   const shownPosts = posts?.length ? posts : defaultPublicPosts;
   const navigateTab = (nextTab: PromoTab) => {
     onTabChange?.(nextTab);
