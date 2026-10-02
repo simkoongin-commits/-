@@ -1243,6 +1243,7 @@ export default function Home() {
   const [participantPracticeId, setParticipantPracticeId] = useState<number | null>(null);
   const [cancelTarget, setCancelTarget] = useState<number | null>(null);
   const [participationPendingId, setParticipationPendingId] = useState<number | null>(null);
+  const [deletingPracticeIds, setDeletingPracticeIds] = useState<number[]>([]);
   const [cardMenu, setCardMenu] = useState<number | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [copyFormats, setCopyFormats] =
@@ -1720,6 +1721,7 @@ export default function Home() {
     () =>
       practices
         .filter((p) => {
+          if (deletingPracticeIds.includes(p.id)) return false;
           if (
             new Date(`${p.date}T${p.end || "23:59"}`).getTime() <
             today.getTime() - 24 * 60 * 60 * 1000
@@ -1734,16 +1736,16 @@ export default function Home() {
         .sort(
           (a, b) => (sort === "asc" ? 1 : -1) * a.date.localeCompare(b.date),
         ),
-    [practices, filter, sort, today],
+    [practices, deletingPracticeIds, filter, sort, today],
   );
   const nextPractice = useMemo(
     () =>
       practices
-        .filter((p) => new Date(`${p.date}T23:59:59`) >= today)
+        .filter((p) => !deletingPracticeIds.includes(p.id) && new Date(`${p.date}T23:59:59`) >= today)
         .sort((a, b) =>
           `${a.date}T${a.start}`.localeCompare(`${b.date}T${b.start}`),
         )[0],
-    [practices, today],
+    [practices, deletingPracticeIds, today],
   );
   const submitPublicQuestion = async (
     item: Omit<PublicQuestion, "id" | "status" | "createdAt">,
@@ -2216,6 +2218,32 @@ export default function Home() {
   const copy = async (text: string, message = "공지 내용을 복사했어요") => {
     await navigator.clipboard.writeText(text);
     notify(message);
+  };
+  const deletePractice = async (practice: Practice) => {
+    if (deletingPracticeIds.includes(practice.id)) return;
+    setDeletingPracticeIds((current) => [...current, practice.id]);
+    setCardMenu(null);
+    try {
+      let committedPractices: Practice[] = [];
+      await runTransaction(db, async (transaction) => {
+        const clubRef = doc(db, "clubs", "simgunghoe");
+        const snapshot = await transaction.get(clubRef);
+        if (!snapshot.exists()) throw new Error("습사 정보를 불러오지 못했어요.");
+        const current = Array.isArray(snapshot.data().practices) ? snapshot.data().practices as Practice[] : [];
+        if (!current.some((item) => item.id === practice.id)) {
+          committedPractices = current;
+          return;
+        }
+        committedPractices = current.filter((item) => item.id !== practice.id);
+        transaction.set(clubRef, { practices: committedPractices }, { merge: true });
+      });
+      setPractices(committedPractices);
+      notify("습사 일정을 삭제했어요");
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "습사 일정을 삭제하지 못했어요.");
+    } finally {
+      setDeletingPracticeIds((current) => current.filter((id) => id !== practice.id));
+    }
   };
   const toggleJoin = async (id: number) => {
     const practice = practices.find((item) => item.id === id);
@@ -2743,17 +2771,7 @@ export default function Home() {
                               <button
                                 className="danger"
                                 onClick={() => {
-                                  if (
-                                    window.confirm(
-                                      `'${p.title}' 게시물을 삭제할까요?`,
-                                    )
-                                  ) {
-                                    setPractices((all) =>
-                                      all.filter((item) => item.id !== p.id),
-                                    );
-                                    notify("게시물을 삭제했어요");
-                                  }
-                                  setCardMenu(null);
+                                  if (window.confirm(`'${p.title}' 습사 일정을 삭제할까요?`)) void deletePractice(p);
                                 }}
                               >
                                 일정 삭제
@@ -3118,32 +3136,35 @@ export default function Home() {
             setEditing(null);
           }}
           onSave={(p) => {
-            let nextPractices: Practice[];
-            if (editing) {
-              nextPractices = practices.map((item) =>
-                  item.id === editing.id
-                    ? { ...item, ...p, updated: ["습사 정보가 수정되었습니다"] }
-                    : item,
-              );
-              notify("습사 내용을 수정했어요");
-            } else {
-              nextPractices = [
-                ...practices,
-                { ...p, id: Date.now(), applicants: [], applicantIds: [], attendeeIds: [], attendanceTracking: true, createdBy: session.id },
-              ];
-              notify("새 습사를 등록했어요");
-            }
-            setPractices(nextPractices);
-            void setDoc(
-              doc(db, "clubs", "simgunghoe"),
-              { practices: nextPractices },
-              { merge: true },
-            ).catch(() => {
-              cloudState.current = "";
-              notify("습사 일정을 저장하지 못했어요. 다시 시도해주세요");
+            const editingId = editing?.id;
+            const newPractice: Practice | null = editingId ? null : {
+              ...p,
+              id: Date.now(),
+              applicants: [],
+              applicantIds: [],
+              attendeeIds: [],
+              attendanceTracking: true,
+              createdBy: session.id,
+            };
+            void runTransaction(db, async (transaction) => {
+              const clubRef = doc(db, "clubs", "simgunghoe");
+              const snapshot = await transaction.get(clubRef);
+              if (!snapshot.exists()) throw new Error("습사 정보를 불러오지 못했어요.");
+              const current = Array.isArray(snapshot.data().practices) ? snapshot.data().practices as Practice[] : [];
+              if (editingId && !current.some((item) => item.id === editingId)) throw new Error("이미 정리된 습사예요.");
+              const nextPractices = editingId
+                ? current.map((item) => item.id === editingId ? { ...item, ...p, updated: ["습사 정보가 수정되었습니다"] } : item)
+                : [...current, newPractice as Practice];
+              transaction.set(clubRef, { practices: nextPractices }, { merge: true });
+              return nextPractices;
+            }).then((nextPractices) => {
+              setPractices(nextPractices);
+              setShowForm(false);
+              setEditing(null);
+              notify(editingId ? "습사 내용을 수정했어요" : "새 습사를 등록했어요");
+            }).catch((error) => {
+              notify(error instanceof Error ? error.message : "습사 일정을 저장하지 못했어요. 다시 시도해주세요");
             });
-            setShowForm(false);
-            setEditing(null);
           }}
         />
       )}
