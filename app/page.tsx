@@ -45,7 +45,6 @@ import {
 } from "@/lib/practiceStats";
 import { memberSnapshot, nextTerm, normalizeTermSnapshots, normalizeWithdrawals, termOrder, type TermSnapshot, type WithdrawalRecord, validTerm } from "@/lib/membershipHistory";
 import { memberDisplayLabel } from "@/lib/memberDisplay";
-import { normalizeSignupPermissions, type SignupPermission } from "@/lib/signupPermissions";
 import {
   gradeFor,
   leaderPositionForTeam,
@@ -1293,7 +1292,6 @@ export default function Home() {
   const [archivedPractices, setArchivedPractices] = useState<ArchivedPractice[]>([]);
   const [termSnapshots, setTermSnapshots] = useState<TermSnapshot[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
-  const [signupPermissions, setSignupPermissions] = useState<SignupPermission[]>([]);
   const [deletionTarget, setDeletionTarget] = useState<Member | null>(null);
   const [deletionTerm, setDeletionTerm] = useState("26-2");
   const [deletionBusy, setDeletionBusy] = useState(false);
@@ -1454,7 +1452,6 @@ export default function Home() {
           termSnapshots: [],
           withdrawals: [],
           practicePlaces: defaultPracticePlaces,
-          signupPermissions: [],
           }).catch(() => {
             setAccessError(
               "공동 일정판을 준비하지 못했어요. 다시 로그인한 뒤 시도해주세요.",
@@ -1506,7 +1503,6 @@ export default function Home() {
             termSnapshots: normalizeTermSnapshots(data.termSnapshots),
             withdrawals: normalizeWithdrawals(data.withdrawals),
             practicePlaces: storedPlaces,
-            signupPermissions: normalizeSignupPermissions(data.signupPermissions),
           };
           cloudState.current = JSON.stringify(emptyState);
           setPractices(emptyState.practices);
@@ -1519,7 +1515,6 @@ export default function Home() {
           setTermSnapshots(emptyState.termSnapshots);
           setWithdrawals(emptyState.withdrawals);
           setPracticePlaces(emptyState.practicePlaces);
-          setSignupPermissions(emptyState.signupPermissions);
           setNeedsBootstrap(true);
           setReady(true);
           return;
@@ -1553,7 +1548,6 @@ export default function Home() {
           termSnapshots: normalizeTermSnapshots(data.termSnapshots),
           withdrawals: normalizeWithdrawals(data.withdrawals),
           practicePlaces: storedPlaces,
-          signupPermissions: normalizeSignupPermissions(data.signupPermissions),
         };
         cloudState.current = JSON.stringify(next);
         setPractices(next.practices);
@@ -1571,7 +1565,6 @@ export default function Home() {
         setTermSnapshots(next.termSnapshots);
         setWithdrawals(next.withdrawals);
         setPracticePlaces(next.practicePlaces);
-        setSignupPermissions(next.signupPermissions);
         setSession(member);
         if (initializedMemberViewFor.current !== authUser.uid) {
           initializedMemberViewFor.current = authUser.uid;
@@ -1611,7 +1604,6 @@ export default function Home() {
       termSnapshots,
       withdrawals,
       practicePlaces,
-      signupPermissions,
     });
     if (cloudState.current === next) return;
     cloudState.current = next;
@@ -1637,7 +1629,7 @@ export default function Home() {
         "공동 데이터 저장에 실패했어요. 잠시 후 다시 시도해주세요.",
       );
     });
-  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, termSnapshots, withdrawals, practicePlaces, signupPermissions, ready, authUser]);
+  }, [practices, clubMembers, currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, termSnapshots, withdrawals, practicePlaces, ready, authUser]);
   useEffect(() => {
     if (!ready || !authUser) return;
     const cleanExpiredRentals = async () => {
@@ -1686,7 +1678,7 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [ready, authUser]);
   const finishBootstrap = async (member: Member) => {
-    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, termSnapshots, withdrawals, practicePlaces, signupPermissions };
+    const next = { practices, members: [member], currentTerm, copyFormats, educationSchedules, mentors, calendarEvents, roomStatus, hallOfFame, equipment, equipmentRentals, archivedPractices, termSnapshots, withdrawals, practicePlaces };
     try {
       await setDoc(doc(db, "clubs", "simgunghoe"), next);
       cloudState.current = JSON.stringify(next);
@@ -1874,21 +1866,6 @@ export default function Home() {
       if (!response.ok) throw new Error("계정 삭제 서버에 일시적인 오류가 있어요. 배포가 완료된 뒤 다시 시도해주세요.");
     }
     if (!response.ok) throw new Error(result.error || "계정을 삭제하지 못했어요.");
-  };
-  const requestSignupPermissionChange = async (
-    method: "POST" | "DELETE",
-    permission: Pick<SignupPermission, "studentId" | "name">,
-  ) => {
-    const token = await auth.currentUser?.getIdToken();
-    if (!token) throw new Error("로그인이 필요해요.");
-    const query = method === "DELETE" ? `?studentId=${encodeURIComponent(permission.studentId)}` : "";
-    const response = await fetch(`/api/admin/signup-permissions${query}`, {
-      method,
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      ...(method === "POST" ? { body: JSON.stringify(permission) } : {}),
-    });
-    const result = await response.json().catch(() => ({})) as { error?: string };
-    if (!response.ok) throw new Error(result.error || "가입 허용 정보를 변경하지 못했어요.");
   };
   const openDeletion = (member: Member) => {
     setDeletionTarget(member);
@@ -2915,7 +2892,6 @@ export default function Home() {
       {view === "members" && (
         <Members
           members={clubMembers}
-          signupPermissions={signupPermissions}
           session={session}
           currentTerm={currentTerm}
           onCurrentTermChange={(term) => {
@@ -3006,28 +2982,6 @@ export default function Home() {
             );
           }}
           onDeleteMember={openDeletion}
-          onAddSignupPermission={async (permission) => {
-            try {
-              await requestSignupPermissionChange("POST", permission);
-              setSignupPermissions((current) => [...current, { ...permission, createdAt: new Date().toISOString() }]);
-              notify("가입 허용 명단에 추가했어요");
-              return true;
-            } catch (error) {
-              notify(error instanceof Error ? error.message : "가입 허용 정보를 저장하지 못했어요");
-              return false;
-            }
-          }}
-          onDeleteSignupPermission={async (permission) => {
-            try {
-              await requestSignupPermissionChange("DELETE", permission);
-              setSignupPermissions((current) => current.filter((item) => item.studentId !== permission.studentId));
-              notify("가입 허용 명단에서 삭제했어요");
-              return true;
-            } catch (error) {
-              notify(error instanceof Error ? error.message : "가입 허용 정보를 삭제하지 못했어요");
-              return false;
-            }
-          }}
         />
       )}
       {view === "hall" && (
@@ -3907,7 +3861,6 @@ function Calendar({
 }
 function Members({
   members,
-  signupPermissions,
   session,
   currentTerm,
   onCurrentTermChange,
@@ -3916,11 +3869,8 @@ function Members({
   onCleanupAuth,
   onRoleChange,
   onDeleteMember,
-  onAddSignupPermission,
-  onDeleteSignupPermission,
 }: {
   members: Member[];
-  signupPermissions: SignupPermission[];
   session: Member;
   currentTerm: string;
   onCurrentTermChange: (term: string) => void;
@@ -3929,17 +3879,12 @@ function Members({
   onCleanupAuth: (studentId: string) => Promise<boolean>;
   onRoleChange: (id: string, role: Member["role"]) => void;
   onDeleteMember: (member: Member) => void;
-  onAddSignupPermission: (permission: Pick<SignupPermission, "studentId" | "name">) => Promise<boolean>;
-  onDeleteSignupPermission: (permission: SignupPermission) => Promise<boolean>;
 }) {
   const [memberTab, setMemberTab] = useState<"members" | "roles">("members");
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [teamSelections, setTeamSelections] = useState<Partial<Record<TeamName, string>>>({});
   const [cleanupStudentId, setCleanupStudentId] = useState("");
   const [cleanupBusy, setCleanupBusy] = useState(false);
-  const [signupStudentId, setSignupStudentId] = useState("");
-  const [signupName, setSignupName] = useState("");
-  const [signupBusy, setSignupBusy] = useState(false);
   const unassignedTeamMembers = members.filter((member) => !memberTeam(member));
   const [termYear, termSemester] = currentTerm.split("-").map(Number);
   const moveTerm = (direction: 1 | -1) => {
@@ -4026,22 +3971,6 @@ function Members({
         ))}
       </div>
       {session.role === "관리자" && <div className="orphan-account-cleanup"><div><b>삭제된 계정 다시 가입</b><small>회원 목록에서는 지웠지만 가입 계정이 남아 있는 학번을 초기화해요.</small></div><div><input inputMode="numeric" pattern="[0-9]+" value={cleanupStudentId} onChange={(event) => setCleanupStudentId(event.target.value.replace(/\D/g, ""))} placeholder="학번" /><button disabled={!cleanupStudentId || cleanupBusy} onClick={async () => { if (!window.confirm(`${cleanupStudentId} 학번의 남은 가입 계정을 초기화할까요?`)) return; setCleanupBusy(true); const success = await onCleanupAuth(cleanupStudentId); setCleanupBusy(false); if (success) setCleanupStudentId(""); }}>{cleanupBusy ? "처리 중" : "가입 정보 초기화"}</button></div></div>}
-      {session.role === "관리자" && <section className="signup-permission-panel">
-        <header><div><b>회원가입 허용 명단</b><small>여기에 등록한 이름과 학번이 모두 일치해야 회원가입할 수 있어요.</small></div><span>{signupPermissions.filter((item) => !item.usedAt).length}명 가입 가능</span></header>
-        <form onSubmit={async (event) => {
-          event.preventDefault();
-          if (!signupStudentId || !signupName.trim() || signupBusy) return;
-          setSignupBusy(true);
-          const added = await onAddSignupPermission({ studentId: signupStudentId, name: signupName.trim() });
-          setSignupBusy(false);
-          if (added) { setSignupStudentId(""); setSignupName(""); }
-        }}>
-          <input value={signupName} onChange={(event) => setSignupName(event.target.value)} placeholder="이름" aria-label="가입 허용 이름" required />
-          <input value={signupStudentId} onChange={(event) => setSignupStudentId(event.target.value.replace(/\D/g, ""))} inputMode="numeric" maxLength={10} placeholder="학번" aria-label="가입 허용 학번" required />
-          <button disabled={signupBusy}>{signupBusy ? "추가 중" : "추가"}</button>
-        </form>
-        <div className="signup-permission-list">{signupPermissions.length ? signupPermissions.map((permission) => <div key={permission.studentId} className={permission.usedAt ? "used" : ""}><span><b>{permission.name}</b><small>{permission.studentId}</small></span><em>{permission.usedAt ? "가입 완료" : "가입 가능"}</em><button aria-label={`${permission.name} 가입 허용 삭제`} onClick={async () => { if (!window.confirm(`${permission.name} (${permission.studentId}) 항목을 삭제할까요?`)) return; setSignupBusy(true); await onDeleteSignupPermission(permission); setSignupBusy(false); }}>삭제</button></div>) : <p>가입을 허용한 학번이 없어요.</p>}</div>
-      </section>}
       </> : (
         <div className="team-role-list">
           {teamNames.map((team) => {
