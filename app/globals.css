@@ -3516,3 +3516,200 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
   .heart-card-main strong { width: 100%; }
   .heart-direction-grid { grid-template-rows: 53px 120px 53px; }
 }
+
+/* UX hierarchy and touch pass */
+:root {
+  --focus-ring: #087fc3;
+  --tap-size: 44px;
+}
+button,
+a,
+summary,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+a,
+summary {
+  touch-action: manipulation;
+}
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[contenteditable="true"]:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--focus-ring) 72%, white);
+  outline-offset: 3px;
+}
+button:disabled,
+button[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+.brand b,
+.public-contact,
+.public-actions button,
+.top-switch button {
+  white-space: nowrap;
+}
+.public-topbar .brand,
+.public-contact {
+  min-width: 0;
+}
+.public-contact {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.public-actions button,
+.public-nav button,
+.top-switch button,
+.member-toolbar button,
+.tabs.expanded > button,
+.tabs.expanded .more-trigger,
+.tabs.expanded .more-submenu button,
+.member-section-tabs button,
+.profile-tabs button,
+.equipment-main-tabs button,
+.stats-period-tabs button,
+.heart-tabs button,
+.calendar-add,
+.modal-head > button,
+.heart-picker-heading button {
+  min-height: var(--tap-size);
+}
+.menu-toggle {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+}
+.menu-toggle span {
+  display: block;
+  font-size: 21px;
+  line-height: 1;
+}
+.menu-toggle.open span {
+  font-size: 28px;
+  font-weight: 300;
+}
+.tabs.expanded {
+  gap: 8px;
+}
+.tabs.expanded button {
+  min-height: 48px;
+}
+.tabs.expanded .more-submenu button {
+  min-height: 44px;
+}
+.member-toolbar .room-status {
+  transform: none;
+}
+.content > .section-head:first-child {
+  padding-bottom: 14px;
+  border-bottom: 1px solid #dcebf3;
+}
+.content > .section-head:first-child h2 {
+  color: #123f5d;
+  letter-spacing: -.04em;
+}
+@media (max-width: 520px) {
+  .public-topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+  .public-topbar .brandmark {
+    width: 32px;
+    height: 32px;
+  }
+  .public-topbar .brand {
+    gap: 7px;
+  }
+  .public-topbar .brand b {
+    font-size: 14px;
+  }
+  .public-contact {
+    width: 100%;
+    padding: 0;
+    font-size: 11px;
+    text-align: left;
+  }
+  .public-actions {
+    gap: 4px;
+  }
+  .public-actions button {
+    min-width: 0;
+    padding-inline: 9px;
+    font-size: 11px;
+  }
+  .public-nav {
+    padding-block: 0;
+  }
+  .public-nav button {
+    padding: 0 2px;
+  }
+  .public-nav button.active:after {
+    bottom: 0;
+  }
+  .member-toolbar {
+    padding: 11px 12px;
+    gap: 7px;
+  }
+  .member-toolbar .brand {
+    gap: 7px;
+  }
+  .member-toolbar .brand b {
+    font-size: 14px;
+  }
+  .member-toolbar .room-status {
+    min-width: 0;
+  }
+  .member-toolbar .room-toggle {
+    min-width: 76px;
+    min-height: 44px;
+    padding-inline: 9px;
+  }
+  .member-toolbar .account {
+    gap: 5px;
+  }
+  .member-toolbar .account .avatar {
+    width: 44px;
+    height: 44px;
+  }
+  .member-toolbar .logout {
+    min-height: 44px;
+    padding-inline: 8px;
+  }
+  .section-head {
+    gap: 12px;
+  }
+  .section-head .primary,
+  .section-head .add-button {
+    min-height: 44px;
+  }
+}
+@media (max-width: 370px) {
+  .public-contact span {
+    display: none;
+  }
+  .public-topbar .brand b {
+    font-size: 13px;
+  }
+  .public-actions button {
+    padding-inline: 7px;
+    font-size: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
