@@ -690,7 +690,7 @@ function PublicPortal({
           </span>
           <b>심궁회</b>
         </a>
-        <a className="public-contact" href="mailto:simkoongin@gmail.com">문의: simkoongin@gmail.com</a>
+        <a className="public-contact" href="mailto:simkoongin@gmail.com"><span>문의: </span>simkoongin@gmail.com</a>
         <div className="public-actions">
           {signedIn ? (
             <button className="member-link" onClick={onMember}>
@@ -711,12 +711,14 @@ function PublicPortal({
       <nav className="public-nav" aria-label="홍보 메뉴">
         <button
           className={tab === "home" ? "active" : ""}
+          aria-current={tab === "home" ? "page" : undefined}
           onClick={() => navigateTab("home")}
         >
           홈
         </button>
         <button
           className={tab === "qa" ? "active" : ""}
+          aria-current={tab === "qa" ? "page" : undefined}
           onClick={() => navigateTab("qa")}
         >
           Q&amp;A
@@ -1299,6 +1301,8 @@ export default function Home() {
   const [attendanceOverrides, setAttendanceOverrides] = useState<Record<string, boolean>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLElement>(null);
   const cloudState = useRef("");
   const registrationInProgress = useRef(false);
   const initializedMemberViewFor = useRef("");
@@ -1326,11 +1330,20 @@ export default function Home() {
     if (!menuOpen) return;
     const previousBodyOverflow = document.body.style.overflow;
     const previousHtmlOverflow = document.documentElement.style.overflow;
+    const closeMenu = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMenuOpen(false);
+      setMoreMenuOpen(false);
+      window.requestAnimationFrame(() => menuToggleRef.current?.focus());
+    };
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
+    document.addEventListener("keydown", closeMenu);
+    window.requestAnimationFrame(() => menuPanelRef.current?.querySelector<HTMLButtonElement>("button")?.focus());
     return () => {
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
+      document.removeEventListener("keydown", closeMenu);
     };
   }, [menuOpen]);
   useEffect(() => {
@@ -2467,7 +2480,7 @@ export default function Home() {
     );
   return (
     <main>
-      <div className="top-switch">
+      <nav className="top-switch" aria-label="서비스 영역">
         <button
           onClick={() => {
             setPromoStartTab("home");
@@ -2479,8 +2492,8 @@ export default function Home() {
         <button className="active" onClick={() => setTopTab("member")}>
           회원 전용
         </button>
-      </div>
-      <div className="member-toolbar">
+      </nav>
+      <header className="member-toolbar">
         <div className="brand">
           <span className="brandmark">
             <img src="/hanyang-mark.png" alt="한양대학교 마크" />
@@ -2539,8 +2552,8 @@ export default function Home() {
             로그아웃
           </button>
         </div>
-      </div>
-      <section className="hero">
+      </header>
+      {view === "cards" && <section className="hero" aria-labelledby="member-home-title">
         <img
           className="hero-logo"
           src="/simkoong-heart.png"
@@ -2548,7 +2561,7 @@ export default function Home() {
         />
         <div>
           <p className="eyebrow">한양대학교 국궁동아리</p>
-          <h1>
+          <h1 id="member-home-title">
             심궁<em>회</em>
           </h1>
         </div>
@@ -2589,37 +2602,47 @@ export default function Home() {
               : "등록된 일정 없음"}
           </small>
         </button>
-      </section>
-      {menuOpen && <button className="menu-scrim" aria-label="메뉴 닫기" onClick={() => { setMenuOpen(false); setMoreMenuOpen(false); }} />}
-      <button className={menuOpen ? "menu-toggle open" : "menu-toggle"} aria-label="메뉴 펼치기" onClick={() => setMenuOpen((open) => !open)}>☰</button>
-      <nav className={menuOpen ? "tabs expanded" : "tabs"} aria-label="회원 메뉴">
+      </section>}
+      {menuOpen && <button className="menu-scrim" tabIndex={-1} aria-label="메뉴 닫기" onClick={() => { setMenuOpen(false); setMoreMenuOpen(false); }} />}
+      <button
+        ref={menuToggleRef}
+        className={menuOpen ? "menu-toggle open" : "menu-toggle"}
+        type="button"
+        aria-label={menuOpen ? "메뉴 닫기" : "메뉴 펼치기"}
+        aria-expanded={menuOpen}
+        aria-controls="member-menu"
+        onClick={() => setMenuOpen((open) => !open)}
+      ><span aria-hidden="true">{menuOpen ? "×" : "☰"}</span></button>
+      <nav ref={menuPanelRef} id="member-menu" className={menuOpen ? "tabs expanded" : "tabs"} aria-label="회원 메뉴" aria-hidden={!menuOpen}>
         {menuOpen && <div className="drawer-head"><b>심궁<em>회</em></b><span>원하는 메뉴를 선택해주세요</span></div>}
         <button
           className={view === "cards" ? "active" : ""}
+          aria-current={view === "cards" ? "page" : undefined}
           onClick={() => { setView("cards"); setMenuOpen(false); }}
         >
-          <span>⌂</span>습사
+          <span aria-hidden="true">⌂</span>습사
         </button>
-        <button className={view === "heartFive" ? "active" : ""} onClick={() => { setView("heartFive"); setMenuOpen(false); }}>
-          <span>◎</span>心五시 心五중
+        <button className={view === "heartFive" ? "active" : ""} aria-current={view === "heartFive" ? "page" : undefined} onClick={() => { setView("heartFive"); setMenuOpen(false); }}>
+          <span aria-hidden="true">◎</span>心五시 心五중
         </button>
-        <button className={view === "hall" ? "active" : ""} onClick={() => { setView("hall"); setMenuOpen(false); }}>
-          <span>♛</span>명예의 전당
+        <button className={view === "hall" ? "active" : ""} aria-current={view === "hall" ? "page" : undefined} onClick={() => { setView("hall"); setMenuOpen(false); }}>
+          <span aria-hidden="true">♛</span>명예의 전당
         </button>
         <div className="more-menu">
           <button
             className={isMoreView ? "active more-trigger" : "more-trigger"}
             aria-expanded={moreMenuOpen}
+            aria-controls="member-more-menu"
             onClick={() => setMoreMenuOpen((open) => !open)}
           >
-            <span>•••</span>더보기<i aria-hidden="true">{moreMenuOpen ? "⌃" : "⌄"}</i>
+            <span aria-hidden="true">•••</span>더보기<i aria-hidden="true">{moreMenuOpen ? "⌃" : "⌄"}</i>
           </button>
           {moreMenuOpen && (
-            <div className="more-submenu">
-              <button className={view === "calendar" ? "active" : ""} onClick={() => { setView("calendar"); setMenuOpen(false); setMoreMenuOpen(false); }}><span>▦</span>달력</button>
-              <button className={view === "members" ? "active" : ""} onClick={() => { setView("members"); setMenuOpen(false); setMoreMenuOpen(false); }}><span>♙</span>회원</button>
-              <button className={view === "statistics" ? "active" : ""} aria-disabled={!canViewStatistics} onClick={() => { if (!canViewStatistics) { notify("통계는 신사와 구사만 볼 수 있어요"); return; } setView("statistics"); setMenuOpen(false); setMoreMenuOpen(false); }}><span>▥</span>{canViewStatistics ? "통계" : "🔒 통계"}</button>
-              <button className={view === "equipment" ? "active" : ""} onClick={() => { setView("equipment"); setMenuOpen(false); setMoreMenuOpen(false); }}><span>⌁</span>장비 관리</button>
+            <div className="more-submenu" id="member-more-menu">
+              <button className={view === "calendar" ? "active" : ""} aria-current={view === "calendar" ? "page" : undefined} onClick={() => { setView("calendar"); setMenuOpen(false); setMoreMenuOpen(false); }}><span aria-hidden="true">▦</span>달력</button>
+              <button className={view === "members" ? "active" : ""} aria-current={view === "members" ? "page" : undefined} onClick={() => { setView("members"); setMenuOpen(false); setMoreMenuOpen(false); }}><span aria-hidden="true">♙</span>회원</button>
+              <button className={view === "statistics" ? "active" : ""} aria-current={view === "statistics" ? "page" : undefined} aria-disabled={!canViewStatistics} onClick={() => { if (!canViewStatistics) { notify("통계는 신사와 구사만 볼 수 있어요"); return; } setView("statistics"); setMenuOpen(false); setMoreMenuOpen(false); }}><span aria-hidden="true">▥</span>{canViewStatistics ? "통계" : "🔒 통계"}</button>
+              <button className={view === "equipment" ? "active" : ""} aria-current={view === "equipment" ? "page" : undefined} onClick={() => { setView("equipment"); setMenuOpen(false); setMoreMenuOpen(false); }}><span aria-hidden="true">⌁</span>장비 관리</button>
             </div>
           )}
         </div>
