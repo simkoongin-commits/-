@@ -2879,13 +2879,13 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 
 /* 명예의 전당: 캔바 기록지 스타일 */
 .hall-page { padding: 22px 14px 108px; }
-.hall-paper { position: relative; min-height: 720px; overflow: hidden; padding: 34px 22px 82px; border: 1px solid #eee9e0; border-radius: 22px; background: radial-gradient(circle at 15% 5%, #fff 0 20%, transparent 45%), linear-gradient(135deg, #fbfaf6, #f1f0ea); box-shadow: 0 16px 35px rgba(71, 80, 74, .14); }
-.hall-paper::before { position: absolute; inset: 0; content: ""; opacity: .3; background: repeating-linear-gradient(25deg, transparent 0 10px, rgba(130, 122, 110, .09) 11px, transparent 12px 20px); pointer-events: none; }
+.hall-paper { position: relative; min-height: 720px; overflow: hidden; padding: 34px 22px 82px; border: 1px solid #e8e0d0; border-radius: 22px; background-color: #f5f0e4; background-image: radial-gradient(circle at 15% 5%, rgba(255, 255, 255, .82) 0 14%, transparent 42%), repeating-linear-gradient(3deg, rgba(109, 94, 70, .025) 0 1px, transparent 1px 6px), repeating-linear-gradient(92deg, rgba(255, 255, 255, .22) 0 1px, transparent 1px 8px), linear-gradient(135deg, #fbf9f1, #eee7d8); box-shadow: inset 0 0 65px rgba(127, 103, 68, .08), 0 16px 35px rgba(71, 80, 74, .14); }
+.hall-paper::before { position: absolute; inset: 0; content: ""; opacity: .5; background: repeating-linear-gradient(27deg, transparent 0 13px, rgba(116, 102, 81, .055) 13px 14px, transparent 14px 29px), repeating-linear-gradient(157deg, transparent 0 19px, rgba(255, 255, 255, .24) 19px 20px, transparent 20px 37px); pointer-events: none; }
 .hall-paper header, .hall-records { position: relative; z-index: 1; }
 .hall-paper header { text-align: center; }
 .hall-paper header h2 { margin: 0; color: #24201b; font-family: Georgia, "Nanum Myeongjo", serif; font-size: 31px; letter-spacing: -2px; }
 .hall-records { display: grid; gap: 26px; margin-top: 38px; }
-.hall-records article { display: grid; grid-template-columns: 46px minmax(0, 1fr) 70px; align-items: start; gap: 10px; padding-bottom: 17px; border-bottom: 1px solid rgba(129, 119, 106, .17); }
+.hall-records article { display: grid; grid-template-columns: 46px minmax(0, 1fr) minmax(94px, 116px); align-items: start; gap: 10px; padding-bottom: 17px; border-bottom: 1px solid rgba(129, 119, 106, .17); }
 .hall-records article i { width: 46px; padding-top: 1px; font-size: 30px; line-height: 34px; text-align: center; font-style: normal; filter: drop-shadow(0 2px 1px rgba(65, 45, 20, .08)); }
 .hall-records article b { color: #16130f; font-family: Georgia, "Nanum Myeongjo", serif; font-size: 23px; letter-spacing: -1.5px; }
 .hall-records article p { display: flex; flex-wrap: wrap; gap: 5px 8px; margin: 7px 0 0; color: #716d68; font-family: "Nanum Myeongjo", Georgia, serif; font-size: 18px; line-height: 1.45; }
@@ -2893,9 +2893,17 @@ button.compact { min-height: 36px; padding: 8px 10px; font-size: 12px; white-spa
 .hall-records article p span:last-child::after { content: ""; }
 .hall-records article p button { margin-left: 3px; border: 0; background: transparent; color: #b6594b; font-size: 14px; font-weight: 900; }
 .hall-records article p small { color: #9a958f; font-family: inherit; font-size: 13px; }
-.hall-records article select { max-width: 70px; min-height: 30px; margin-top: 2px; border: 1px solid #d8d0c3; border-radius: 8px; background: #fffdfa; color: #695f52; font-size: 11px; }
-.hall-paper > img { position: absolute; right: -14px; bottom: 10px; width: 58%; opacity: .09; filter: grayscale(1); transform: rotate(-7deg); }
+.hall-name-add { display: grid; gap: 6px; margin-top: 2px; }
+.hall-name-add input { width: 100%; min-width: 0; min-height: 44px; padding: 9px 10px; border: 1px solid #d7cdbd; border-radius: 10px; background: rgba(255, 253, 248, .9); color: #40382f; font-size: 13px; }
+.hall-name-add button { min-height: 44px; border: 1px solid #cbbda8; border-radius: 10px; background: rgba(255, 252, 245, .94); color: #665847; font-size: 12px; font-weight: 800; }
+.hall-paper > img { position: absolute; right: 20px; bottom: 12px; width: 54%; opacity: .09; filter: grayscale(1); transform: rotate(-7deg); }
 .hall-records article:nth-child(6) { margin-top: 7px; padding-top: 16px; border-top: 1px solid rgba(129, 119, 106, .17); }
+@media (max-width: 430px) {
+  .hall-records article { grid-template-columns: 40px minmax(0, 1fr); gap: 9px; }
+  .hall-records article i { width: 40px; font-size: 27px; }
+  .hall-name-add { grid-column: 2; grid-template-columns: minmax(0, 1fr) auto; }
+  .hall-name-add button { padding-inline: 12px; }
+}
 @media (max-width: 480px) {
   .schedule-modal-back { align-items: end; padding: 0; }
   .schedule-sheet { width: 100%; max-width: 100%; padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; }
