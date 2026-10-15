@@ -58,7 +58,6 @@ import {
 } from "@/lib/members";
 
 const EquipmentManagement = dynamic(() => import("@/app/components/EquipmentManagement"));
-const Statistics = dynamic(() => import("@/app/components/Statistics"));
 const HeartFive = dynamic(() => import("@/app/components/HeartFive"));
 
 type Member = ClubMember;
@@ -525,12 +524,12 @@ function LoginScreen({
         <h1>
           심궁회
           <br />
-          <em>습사 일정표</em>
+          <em>회원 전용</em>
         </h1>
         <p>
           {mode === "login"
             ? "학번과 비밀번호로 로그인해주세요."
-            : "관리자가 미리 등록한 이름과 학번으로만 가입할 수 있어요."}
+            : "이름과 학번, 비밀번호를 입력해 가입해주세요."}
         </p>
         <form onSubmit={mode === "login" ? login : register}>
           <label>
@@ -1245,7 +1244,7 @@ function BootstrapAdmin({
 
 export default function Home() {
   const [practices, setPractices] = useState<Practice[]>(seedPractices);
-  const [view, setView] = useState<MemberView>("cards");
+  const [view, setView] = useState<MemberView>("heartFive");
   const [sort, setSort] = useState<"asc" | "desc">("asc");
   const [filter, setFilter] = useState<
     "all" | "regular" | "general" | "competition"
@@ -1271,9 +1270,6 @@ export default function Home() {
   const [needsBootstrap, setNeedsBootstrap] = useState(false);
   const [topTab, setTopTab] = useState<"public" | "member">("member");
   const [promoStartTab, setPromoStartTab] = useState<PromoTab>("home");
-  const [authOverlay, setAuthOverlay] = useState<"login" | "signup" | null>(
-    null,
-  );
   const [publicScenes, setPublicScenes] =
     useState<PromoScene[]>(defaultPromoScenes);
   const [publicSceneImages, setPublicSceneImages] = useState<Record<string, string>>({});
@@ -1300,7 +1296,6 @@ export default function Home() {
   const [practicePlaces, setPracticePlaces] = useState<string[]>(defaultPracticePlaces);
   const [attendanceOverrides, setAttendanceOverrides] = useState<Record<string, boolean>>({});
   const [menuOpen, setMenuOpen] = useState(false);
-  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const menuToggleRef = useRef<HTMLButtonElement>(null);
   const menuPanelRef = useRef<HTMLElement>(null);
   const cloudState = useRef("");
@@ -1333,7 +1328,6 @@ export default function Home() {
     const closeMenu = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setMenuOpen(false);
-      setMoreMenuOpen(false);
       window.requestAnimationFrame(() => menuToggleRef.current?.focus());
     };
     document.body.style.overflow = "hidden";
@@ -1382,8 +1376,14 @@ export default function Home() {
       applyingHistory.current = true;
       setMenuOpen(false);
       setProfileOpen(false);
-      setTopTab(state.topTab);
-      setView((state.view as string) === "education" ? "cards" : state.view);
+      setTopTab("member");
+      setView(
+        (state.view as string) === "cards" ||
+          (state.view as string) === "statistics" ||
+          (state.view as string) === "education"
+          ? "heartFive"
+          : state.view,
+      );
       setPromoStartTab(state.promoTab);
       window.setTimeout(() => {
         applyingHistory.current = false;
@@ -1581,7 +1581,7 @@ export default function Home() {
         setSession(member);
         if (initializedMemberViewFor.current !== authUser.uid) {
           initializedMemberViewFor.current = authUser.uid;
-          setView("cards");
+          setView("heartFive");
           setTopTab("member");
         }
         setReady(true);
@@ -1698,7 +1698,7 @@ export default function Home() {
       setClubMembers([member]);
       setSession(member);
       setNeedsBootstrap(false);
-      setView("cards");
+      setView("heartFive");
       setTopTab("member");
     } catch {
       setAccessError(
@@ -1781,25 +1781,11 @@ export default function Home() {
     );
   if (!authUser)
     return (
-      <>
-        {authOverlay ? (
-          <LoginScreen
-            error={accessError}
-            onRegister={registerMember}
-            initialMode={authOverlay}
-            onClose={() => setAuthOverlay(null)}
-          />
-        ) : (
-          <PublicPortal
-            signedIn={false}
-            onAuth={setAuthOverlay}
-            scenes={shownPublicScenes}
-            posts={publicPosts}
-            questions={publicQuestions}
-            onQuestion={submitPublicQuestion}
-          />
-        )}
-      </>
+      <LoginScreen
+        error={accessError}
+        onRegister={registerMember}
+        initialMode="login"
+      />
     );
   if (!ready)
     return (
@@ -1812,7 +1798,7 @@ export default function Home() {
               다시 불러오기
             </button>
             <button type="button" className="text-button" onClick={() => void signOut(auth)}>
-              로그아웃 후 홍보 페이지 보기
+              로그아웃
             </button>
           </section>
         ) : (
@@ -1849,8 +1835,6 @@ export default function Home() {
     setToast(message);
     window.setTimeout(() => setToast(""), 1900);
   };
-  const canViewStatistics = session.grade === "신사" || session.grade === "구사";
-  const isMoreView = (["calendar", "members", "statistics", "equipment"] as MemberView[]).includes(view);
   const persistHallOfFame = (nextHall: HallOfFame) => {
     const normalized = normalizeHall(nextHall);
     setHallOfFame(normalized);
@@ -2480,19 +2464,6 @@ export default function Home() {
     );
   return (
     <main>
-      <nav className="top-switch" aria-label="서비스 영역">
-        <button
-          onClick={() => {
-            setPromoStartTab("home");
-            setTopTab("public");
-          }}
-        >
-          홍보
-        </button>
-        <button className="active" onClick={() => setTopTab("member")}>
-          회원 전용
-        </button>
-      </nav>
       <header className="member-toolbar">
         <div className="brand">
           <span className="brandmark">
@@ -2500,7 +2471,7 @@ export default function Home() {
           </span>
           <span>
             <b>심궁회</b>
-            <small>습사 일정 관리</small>
+            <small>회원 전용</small>
           </span>
         </div>
         <div className="room-status">
@@ -2515,25 +2486,6 @@ export default function Home() {
           {roomStatus.isOpen && <small>{roomStatus.openedByName}</small>}
         </div>
         <div className="account">
-          {(session.role === "관리자" || session.grade === "구사" || session.team === "홍보팀") &&
-            publicQuestions.some((item) => item.status === "waiting") && (
-              <button
-                className="notification-bell"
-                onClick={() => {
-                  setPromoStartTab("qa");
-                  setTopTab("public");
-                }}
-                aria-label={`답변 대기 질문 ${publicQuestions.filter((item) => item.status === "waiting").length}개`}
-              >
-                ♧
-                <i>
-                  {
-                    publicQuestions.filter((item) => item.status === "waiting")
-                      .length
-                  }
-                </i>
-              </button>
-            )}
           <button
             className="avatar profile-trigger"
             onClick={() => setProfileOpen(true)}
@@ -2603,7 +2555,7 @@ export default function Home() {
           </small>
         </button>
       </section>}
-      {menuOpen && <button className="menu-scrim" tabIndex={-1} aria-label="메뉴 닫기" onClick={() => { setMenuOpen(false); setMoreMenuOpen(false); }} />}
+      {menuOpen && <button className="menu-scrim" tabIndex={-1} aria-label="메뉴 닫기" onClick={() => setMenuOpen(false)} />}
       <button
         ref={menuToggleRef}
         className={menuOpen ? "menu-toggle open" : "menu-toggle"}
@@ -2615,37 +2567,21 @@ export default function Home() {
       ><span aria-hidden="true">{menuOpen ? "×" : "☰"}</span></button>
       <nav ref={menuPanelRef} id="member-menu" className={menuOpen ? "tabs expanded" : "tabs"} aria-label="회원 메뉴" aria-hidden={!menuOpen}>
         {menuOpen && <div className="drawer-head"><b>심궁<em>회</em></b><span>원하는 메뉴를 선택해주세요</span></div>}
-        <button
-          className={view === "cards" ? "active" : ""}
-          aria-current={view === "cards" ? "page" : undefined}
-          onClick={() => { setView("cards"); setMenuOpen(false); }}
-        >
-          <span aria-hidden="true">⌂</span>습사
-        </button>
         <button className={view === "heartFive" ? "active" : ""} aria-current={view === "heartFive" ? "page" : undefined} onClick={() => { setView("heartFive"); setMenuOpen(false); }}>
           <span aria-hidden="true">◎</span>心五시 心五중
+        </button>
+        <button className={view === "equipment" ? "active" : ""} aria-current={view === "equipment" ? "page" : undefined} onClick={() => { setView("equipment"); setMenuOpen(false); }}>
+          <span aria-hidden="true">⌁</span>장비 관리
+        </button>
+        <button className={view === "calendar" ? "active" : ""} aria-current={view === "calendar" ? "page" : undefined} onClick={() => { setView("calendar"); setMenuOpen(false); }}>
+          <span aria-hidden="true">▦</span>달력
+        </button>
+        <button className={view === "members" ? "active" : ""} aria-current={view === "members" ? "page" : undefined} onClick={() => { setView("members"); setMenuOpen(false); }}>
+          <span aria-hidden="true">♙</span>회원
         </button>
         <button className={view === "hall" ? "active" : ""} aria-current={view === "hall" ? "page" : undefined} onClick={() => { setView("hall"); setMenuOpen(false); }}>
           <span aria-hidden="true">♛</span>명예의 전당
         </button>
-        <div className="more-menu">
-          <button
-            className={isMoreView ? "active more-trigger" : "more-trigger"}
-            aria-expanded={moreMenuOpen}
-            aria-controls="member-more-menu"
-            onClick={() => setMoreMenuOpen((open) => !open)}
-          >
-            <span aria-hidden="true">•••</span>더보기<i aria-hidden="true">{moreMenuOpen ? "⌃" : "⌄"}</i>
-          </button>
-          {moreMenuOpen && (
-            <div className="more-submenu" id="member-more-menu">
-              <button className={view === "calendar" ? "active" : ""} aria-current={view === "calendar" ? "page" : undefined} onClick={() => { setView("calendar"); setMenuOpen(false); setMoreMenuOpen(false); }}><span aria-hidden="true">▦</span>달력</button>
-              <button className={view === "members" ? "active" : ""} aria-current={view === "members" ? "page" : undefined} onClick={() => { setView("members"); setMenuOpen(false); setMoreMenuOpen(false); }}><span aria-hidden="true">♙</span>회원</button>
-              <button className={view === "statistics" ? "active" : ""} aria-current={view === "statistics" ? "page" : undefined} aria-disabled={!canViewStatistics} onClick={() => { if (!canViewStatistics) { notify("통계는 신사와 구사만 볼 수 있어요"); return; } setView("statistics"); setMenuOpen(false); setMoreMenuOpen(false); }}><span aria-hidden="true">▥</span>{canViewStatistics ? "통계" : "🔒 통계"}</button>
-              <button className={view === "equipment" ? "active" : ""} aria-current={view === "equipment" ? "page" : undefined} onClick={() => { setView("equipment"); setMenuOpen(false); setMoreMenuOpen(false); }}><span aria-hidden="true">⌁</span>장비 관리</button>
-            </div>
-          )}
-        </div>
       </nav>
       {view === "cards" && (
         <section className="content">
@@ -2874,8 +2810,8 @@ export default function Home() {
       )}
       {view === "calendar" && (
         <Calendar
-          practices={practices}
-          archivedPractices={archivedPractices}
+          practices={[]}
+          archivedPractices={[]}
           events={calendarEvents}
           canAdd={session.role === "관리자"}
           onAdd={() => {
@@ -2887,16 +2823,7 @@ export default function Home() {
             setEditingCalendarEvent(event);
             setShowCalendarForm(true);
           }}
-          onSelect={(id) => {
-            setView("cards");
-            window.setTimeout(
-              () =>
-                document
-                  .getElementById(`practice-${id}`)
-                  ?.scrollIntoView({ behavior: "smooth", block: "center" }),
-              80,
-            );
-          }}
+          onSelect={() => undefined}
         />
       )}
       {showCalendarForm && (
@@ -3014,18 +2941,6 @@ export default function Home() {
           editable={session.role === "관리자"}
           onChange={persistHallOfFame}
         />
-      )}
-      {view === "statistics" && canViewStatistics && (
-        <Statistics
-          members={clubMembers}
-          currentTerm={currentTerm}
-          snapshots={termSnapshots}
-          withdrawals={withdrawals}
-          hall={hallOfFame}
-        />
-      )}
-      {view === "statistics" && !canViewStatistics && (
-        <section className="content statistics-locked"><span aria-hidden="true">🔒</span><h2>통계가 잠겨 있어요</h2><p>통계는 신사와 구사 회원만 확인할 수 있어요.</p><button className="primary" onClick={() => setView("cards")}>습사로 돌아가기</button></section>
       )}
       {view === "heartFive" && (
         <HeartFive places={practicePlaces} />
@@ -3766,8 +3681,8 @@ function CalendarEventForm({
 function HallOfFameView({ hall, members, editable, onChange }: { hall: HallOfFame; members: Member[]; editable: boolean; onChange: (hall: HallOfFame) => void }) {
   const icons = ["🎉", "👑", "🥉", "🥈", "🥇", "🏆"];
   const captureRef = useRef<HTMLDivElement>(null);
-  const assignedMemberIds = new Set(hallRanks.flatMap((rank) => hall[rank]));
-  const availableMembers = members.filter((member) => !assignedMemberIds.has(member.id));
+  const [draftNames, setDraftNames] = useState<Partial<Record<HallRank, string>>>({});
+  const displayName = (value: string) => members.find((member) => member.id === value)?.name || value;
   const saveImage = async () => {
     if (!captureRef.current) return;
     const { toPng } = await import("html-to-image");
@@ -3777,15 +3692,20 @@ function HallOfFameView({ hall, members, editable, onChange }: { hall: HallOfFam
     link.href = dataUrl;
     link.click();
   };
-  const moveMember = (memberId: string, rank: HallRank) => {
-    const next = Object.fromEntries(hallRanks.map((currentRank) => [
-      currentRank,
-      hall[currentRank].filter((id) => id !== memberId),
-    ])) as HallOfFame;
-    next[rank] = [...next[rank], memberId];
-    onChange(next);
+  const addName = (rank: HallRank) => {
+    const name = (draftNames[rank] || "").trim();
+    if (!name) return;
+    const alreadyRegistered = hallRanks.some((currentRank) =>
+      hall[currentRank].some((value) => displayName(value).trim().toLocaleLowerCase("ko-KR") === name.toLocaleLowerCase("ko-KR")),
+    );
+    if (alreadyRegistered) {
+      window.alert("이미 명예의 전당에 등록된 이름입니다.");
+      return;
+    }
+    onChange({ ...hall, [rank]: [...hall[rank], name] });
+    setDraftNames((current) => ({ ...current, [rank]: "" }));
   };
-  return <section className="content hall-page"><div className="hall-paper" ref={captureRef}><header><h2>명예의 전당</h2></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((id) => { const member = members.find((item) => item.id === id); return <span key={id}>{member?.name || id}{editable && <button className="hall-admin-control" aria-label="삭제" onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((item) => item !== id) })}>×</button>}</span>; }) : <small>아직 기록된 회원이 없어요</small>}</p></div>{editable && <select className="hall-admin-control" value="" disabled={!availableMembers.length} onChange={(e) => { if (!e.target.value) return; moveMember(e.target.value, rank); }}><option value="">{availableMembers.length ? "추가" : "추가 가능 없음"}</option>{availableMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div><button className="hall-save-image" onClick={() => void saveImage()}>이미지 저장</button></section>;
+  return <section className="content hall-page"><div className="hall-paper" ref={captureRef}><header><h2>명예의 전당</h2></header><div className="hall-records">{hallRanks.map((rank, index) => <article key={rank}><i>{icons[index]}</i><div><b>{rank}</b><p>{hall[rank].length ? hall[rank].map((value, entryIndex) => <span key={`${value}-${entryIndex}`}>{displayName(value)}{editable && <button className="hall-admin-control" aria-label={`${displayName(value)} 삭제`} onClick={() => onChange({ ...hall, [rank]: hall[rank].filter((_, itemIndex) => itemIndex !== entryIndex) })}>×</button>}</span>) : <small>아직 기록된 이름이 없어요</small>}</p></div>{editable && <form className="hall-name-add hall-admin-control" onSubmit={(event) => { event.preventDefault(); addName(rank); }}><input value={draftNames[rank] || ""} onChange={(event) => setDraftNames((current) => ({ ...current, [rank]: event.target.value }))} placeholder="이름 입력" aria-label={`${rank} 이름 입력`} /><button type="submit">추가</button></form>}</article>)}</div><img src="/simkoong-heart.png" alt="" /></div><button className="hall-save-image" onClick={() => void saveImage()}>이미지 저장</button></section>;
 }
 
 function Calendar({
@@ -3820,7 +3740,7 @@ function Calendar({
           <h2>
             {year}년 {monthNumber + 1}월
           </h2>
-          <p>습사와 일반 일정을 함께 확인하세요.</p>
+          <p>동아리 일정을 한눈에 확인하세요.</p>
         </div>
         <div className="month-nav">
           <button onClick={() => setMonth(new Date(year, monthNumber - 1, 1))}>
