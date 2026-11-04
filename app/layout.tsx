@@ -2,9 +2,44 @@ import type { Metadata, Viewport } from "next";
 import PwaRegistration from "./components/PwaRegistration";
 import "./globals.css";
 
+const siteUrl = new URL("https://simkoong.vercel.app");
+
 export const metadata: Metadata = {
-  title: "심궁회",
-  description: "한양대학교 국궁동아리 심궁회의 일정과 활동을 관리합니다.",
+  metadataBase: siteUrl,
+  title: "심궁회 | 한양대학교 국궁동아리",
+  description: "한양대학교 국궁동아리 심궁회의 회원 활동과 장비, 일정을 관리하는 공식 웹사이트입니다.",
+  alternates: {
+    canonical: "/",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    type: "website",
+    locale: "ko_KR",
+    url: "/",
+    siteName: "심궁회",
+    title: "심궁회 | 한양대학교 국궁동아리",
+    description: "한양대학교 국궁동아리 심궁회의 공식 웹사이트입니다.",
+    images: [{ url: "/icon-512.png", width: 512, height: 512, alt: "심궁회" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "심궁회 | 한양대학교 국궁동아리",
+    description: "한양대학교 국궁동아리 심궁회의 공식 웹사이트입니다.",
+    images: ["/icon-512.png"],
+  },
+  verification: process.env.GOOGLE_SITE_VERIFICATION
+    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+    : undefined,
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
