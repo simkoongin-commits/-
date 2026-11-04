@@ -531,6 +531,9 @@ function LoginScreen({
             ? "학번과 비밀번호로 로그인해주세요."
             : "이름과 학번, 비밀번호를 입력해 가입해주세요."}
         </p>
+        <p className="login-search-copy">
+          심궁앱(심쿵앱)은 한양대학교 국궁동아리 심궁회의 회원 전용 웹앱입니다.
+        </p>
         <form onSubmit={mode === "login" ? login : register}>
           <label>
             학번
