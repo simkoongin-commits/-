@@ -4,6 +4,8 @@ import "./globals.css";
 
 const siteUrl = new URL("https://simkoong.vercel.app");
 const siteDescription = "한양대학교 국궁동아리 심궁회의 회원 전용 웹앱입니다. 심궁앱과 심쿵앱으로도 찾아볼 수 있습니다.";
+const googleSiteVerification =
+  process.env.GOOGLE_SITE_VERIFICATION ?? "081ZhOfHo0naSONtcIC2vNnf882GaRWRlnGt_TUZRDM";
 const structuredData = {
   "@context": "https://schema.org",
   "@type": "WebSite",
@@ -48,9 +50,7 @@ export const metadata: Metadata = {
     description: siteDescription,
     images: ["/icon-512.png"],
   },
-  verification: process.env.GOOGLE_SITE_VERIFICATION
-    ? { google: process.env.GOOGLE_SITE_VERIFICATION }
-    : undefined,
+  verification: { google: googleSiteVerification },
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
