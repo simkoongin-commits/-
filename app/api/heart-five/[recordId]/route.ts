@@ -38,7 +38,6 @@ export async function PUT(request: NextRequest, context: { params: Promise<{ rec
       const current = currentSnapshot.exists ? parseHeartFiveRecord(recordId, currentSnapshot.data() || {}) : null;
       if (currentSnapshot.exists && !current) return { error: "기록을 읽을 수 없습니다.", status: 409 };
       if (current && current.ownerUid !== auth.uid) return { error: "본인 기록만 수정할 수 있습니다.", status: 403 };
-      if (current && current.date < today) return { error: "지난 날짜의 기록은 수정할 수 없습니다.", status: 403 };
       if (!current && body.date! < today) return { error: "지난 날짜로 새 기록을 추가할 수 없습니다.", status: 400 };
       if (!availablePlaces.includes(place) && current?.place !== place) return { error: "장소 선택지에서 장소를 골라주세요.", status: 400 };
       const finalized = body.finalized === true || (body.finalized === undefined && current?.finalized === true);

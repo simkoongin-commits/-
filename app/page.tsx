@@ -47,14 +47,11 @@ import { memberSnapshot, nextTerm, normalizeTermSnapshots, normalizeWithdrawals,
 import { memberDisplayLabel } from "@/lib/memberDisplay";
 import {
   gradeFor,
-  leaderPositionForTeam,
-  memberTeam,
   normalizeMemberTeam,
   teamForPosition,
   teamNames,
   validMemberTerm,
   type ClubMember,
-  type TeamName,
 } from "@/lib/members";
 
 const EquipmentManagement = dynamic(() => import("@/app/components/EquipmentManagement"));
@@ -2876,21 +2873,6 @@ export default function Home() {
             notify("회원 정보를 수정했어요");
             return true;
           }}
-          onTeamChange={(id, team) => {
-            const target = clubMembers.find((member) => member.id === id);
-            if (!target) return;
-            const positionTeam = teamForPosition(target.position);
-            if (positionTeam && team && team !== positionTeam) {
-              notify(`${target.position} 역할은 ${positionTeam} 소속으로 고정돼요`);
-              return;
-            }
-            const updated = { ...target, team };
-            setClubMembers((all) =>
-              all.map((member) => (member.id === id ? updated : member)),
-            );
-            if (session.id === id) setSession(updated);
-            notify(team ? `${target.name}님을 ${team}에 배정했어요` : `${target.name}님의 팀 배정을 해제했어요`);
-          }}
           onCleanupAuth={async (studentId) => {
             try {
               await requestAccountDeletion(studentId, true);
@@ -3811,7 +3793,6 @@ function Members({
   currentTerm,
   onCurrentTermChange,
   onUpdateMember,
-  onTeamChange,
   onCleanupAuth,
   onRoleChange,
   onDeleteMember,
@@ -3821,17 +3802,13 @@ function Members({
   currentTerm: string;
   onCurrentTermChange: (term: string) => void;
   onUpdateMember: (member: Member) => boolean;
-  onTeamChange: (id: string, team: Member["team"]) => void;
   onCleanupAuth: (studentId: string) => Promise<boolean>;
   onRoleChange: (id: string, role: Member["role"]) => void;
   onDeleteMember: (member: Member) => void;
 }) {
-  const [memberTab, setMemberTab] = useState<"members" | "roles">("members");
   const [editingMember, setEditingMember] = useState<Member | null>(null);
-  const [teamSelections, setTeamSelections] = useState<Partial<Record<TeamName, string>>>({});
   const [cleanupStudentId, setCleanupStudentId] = useState("");
   const [cleanupBusy, setCleanupBusy] = useState(false);
-  const unassignedTeamMembers = members.filter((member) => !memberTeam(member));
   const [termYear, termSemester] = currentTerm.split("-").map(Number);
   const moveTerm = (direction: 1 | -1) => {
     const nextSemester = termSemester + direction;
@@ -3854,11 +3831,6 @@ function Members({
           </h2>
         </div>
       </div>
-      <div className="member-section-tabs" aria-label="회원 관리 구분">
-        <button className={memberTab === "members" ? "active" : ""} onClick={() => setMemberTab("members")}>회원</button>
-        <button className={memberTab === "roles" ? "active" : ""} onClick={() => setMemberTab("roles")}>역할</button>
-      </div>
-      {memberTab === "members" ? <>
       <div className="term-setting">
         <div>
           <b>현재 학기</b>
@@ -3890,9 +3862,7 @@ function Members({
                 {m.joinTerm} 입부
               </small>
             </div>
-            <span className="grade member-grade">
-              {m.position || !memberTeam(m) ? memberDisplayLabel(m) : <>{m.grade}<br /><span className="member-team-suffix">-{memberTeam(m)}</span></>}
-            </span>
+            <span className="grade member-grade">{m.grade}</span>
             <span className="role">{m.role}</span>
             {session.role === "관리자" && (
               <div className="member-actions">
@@ -3917,48 +3887,6 @@ function Members({
         ))}
       </div>
       {session.role === "관리자" && <div className="orphan-account-cleanup"><div><b>삭제된 계정 다시 가입</b><small>회원 목록에서는 지웠지만 가입 계정이 남아 있는 학번을 초기화해요.</small></div><div><input inputMode="numeric" pattern="[0-9]+" value={cleanupStudentId} onChange={(event) => setCleanupStudentId(event.target.value.replace(/\D/g, ""))} placeholder="학번" /><button disabled={!cleanupStudentId || cleanupBusy} onClick={async () => { if (!window.confirm(`${cleanupStudentId} 학번의 남은 가입 계정을 초기화할까요?`)) return; setCleanupBusy(true); const success = await onCleanupAuth(cleanupStudentId); setCleanupBusy(false); if (success) setCleanupStudentId(""); }}>{cleanupBusy ? "처리 중" : "가입 정보 초기화"}</button></div></div>}
-      </> : (
-        <div className="team-role-list">
-          {teamNames.map((team) => {
-            const leaderPosition = leaderPositionForTeam[team];
-            const assigned = members
-              .filter((member) => memberTeam(member) === team)
-              .sort((a, b) => Number(b.position === leaderPosition) - Number(a.position === leaderPosition));
-            const teamLeader = assigned.find((member) => member.position === leaderPosition);
-            const selectedId = teamSelections[team] || "";
-            return (
-              <section className="team-role-card" key={team}>
-                <header>
-                  <div><b>{team}</b><small>{assigned.length}명{teamLeader ? ` · 팀장 ${teamLeader.name}` : ""}</small></div>
-                  {session.role === "관리자" && (
-                    <div className="team-assign-control">
-                      <select value={selectedId} onChange={(event) => setTeamSelections((current) => ({ ...current, [team]: event.target.value }))} aria-label={`${team} 회원 선택`}>
-                        <option value="">회원 선택</option>
-                        {unassignedTeamMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-                      </select>
-                      <button disabled={!selectedId} onClick={() => {
-                        const member = members.find((item) => item.id === selectedId);
-                        if (!member) return;
-                        if (memberTeam(member)) {
-                          setTeamSelections((current) => ({ ...current, [team]: "" }));
-                          return;
-                        }
-                        onTeamChange(member.id, team);
-                        setTeamSelections({});
-                      }}>추가</button>
-                    </div>
-                  )}
-                </header>
-                <div className="team-members">
-                  {assigned.length ? assigned.map((member) => { const isLeader = member.position === leaderPosition; return (
-                    <span key={member.id} className={isLeader ? "team-leader" : ""}><i>{member.name[0]}</i><b>{member.name}</b>{isLeader && <em>팀장</em>}{session.role === "관리자" && !isLeader && <button onClick={() => onTeamChange(member.id, "")} aria-label={`${member.name} 팀 해제`}>×</button>}</span>
-                  ); }) : <p>배정된 회원이 없어요.</p>}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      )}
       {editingMember && (
         <MemberForm
           initial={editingMember}
