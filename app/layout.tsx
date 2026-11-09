@@ -3,6 +3,7 @@ import PwaRegistration from "./components/PwaRegistration";
 import "./globals.css";
 
 const siteUrl = new URL("https://simkoong.vercel.app");
+const searchIconUrl = new URL("/google-search-icon.png", siteUrl);
 const siteDescription = "한양대학교 국궁동아리 심궁회의 회원 전용 웹앱입니다. 심궁앱과 심쿵앱으로도 찾아볼 수 있습니다.";
 const googleSiteVerification =
   process.env.GOOGLE_SITE_VERIFICATION ?? "081ZhOfHo0naSONtcIC2vNnf882GaRWRlnGt_TUZRDM";
@@ -12,6 +13,7 @@ const structuredData = {
   name: "심궁회",
   alternateName: ["심궁앱", "심쿵앱"],
   url: siteUrl.href,
+  image: searchIconUrl.href,
   description: siteDescription,
   inLanguage: "ko-KR",
 };
@@ -54,6 +56,8 @@ export const metadata: Metadata = {
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [
+      { url: "/google-search-icon.png", sizes: "192x192", type: "image/png" },
+      { url: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
